@@ -70,17 +70,36 @@ func (t *RBTree[K, V]) Insert(key K, value V) {
 }
 
 func (t *RBTree[K, V]) InsertFix(x *Node[K, V]) {
-	// p := x.parent
-	// if p.isBlack {
-	// 	return
-	// }
-	// g := p.parent
-	// var u *Node[K, V]
-	// if g.left == p {
-	// 	u = g.right
-	// } else {
-	// 	u = g.left
-	// }
+	p := x.parent
+	if p.isBlack {
+		return
+	}
+	g := p.parent
+	var u *Node[K, V]
+	if g.left == p {
+		u = g.right
+	} else {
+		u = g.left
+	}
+
+	if u != nil {
+		if !u.isBlack {
+			//      B       ->R
+			//     /\        /\
+			//    R  R  =>  B  B
+			//   /         /
+			//->R         R
+
+			u.isBlack = BLACK
+			p.isBlack = BLACK
+			if g != t.Root {
+				g.isBlack = RED
+				t.InsertFix(g)
+			}
+
+			return
+		}
+	}
 
 }
 
