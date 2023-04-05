@@ -122,12 +122,6 @@ func TestFixLL(t *testing.T) {
 		[]Color{RED, BLACK, BLACK, BLACK},
 	)
 
-	// n4 := n5.left
-	// assertNode(t, n4, 4, RED)
-	// assertNode(t, n5, 5, BLACK)
-	// assertNode(t, n7, 7, BLACK)
-	// assertNode(t, n6, 6, BLACK)
-
 	//   Root(6)
 	//       / \
 	//     (4) (7)
@@ -140,10 +134,6 @@ func TestFixLL(t *testing.T) {
 		[]int{3, 4, 5, 6, 7},
 		[]Color{RED, BLACK, RED, BLACK, BLACK},
 	)
-	// n3 := n4.left
-	// assertNode(t, n4, 4, BLACK)
-	// assertNode(t, n3, 3, RED)
-	// assertNode(t, n5, 5, RED)
 
 	//   Root(6)
 	//       / \
@@ -159,12 +149,6 @@ func TestFixLL(t *testing.T) {
 		[]int{2, 3, 4, 5, 6, 7},
 		[]Color{RED, BLACK, RED, BLACK, BLACK, BLACK},
 	)
-	// n2 := n3.left
-
-	// assertNode(t, n4, 4, RED)
-	// assertNode(t, n3, 3, BLACK)
-	// assertNode(t, n5, 5, BLACK)
-	// assertNode(t, n2, 2, RED)
 
 	//   Root(6)
 	//       / \
@@ -180,14 +164,8 @@ func TestFixLL(t *testing.T) {
 		[]Color{RED, BLACK, RED, RED, BLACK, BLACK, BLACK},
 	)
 
-	// n1 := n2.left
-	// assertNode(t, n4, 4, RED)
-	// assertNode(t, n3, 3, RED)
-	// assertNode(t, n1, 1, RED)
-	// assertNode(t, n2, 2, BLACK)
-
+	//
 	tree.Insert(0, 0)
-	// assertNode(t, tree.root.left, 4, BLACK)
 	CheckTree(
 		t, tree,
 		[]int{0, 1, 2, 3, 4, 5, 6, 7},

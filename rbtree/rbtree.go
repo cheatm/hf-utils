@@ -38,9 +38,17 @@ func (node *Node[K, V]) AddRight(child *Node[K, V]) {
 
 func (n *Node[K, V]) GoString() string {
 	if n.isBlack {
-		return fmt.Sprintf("B{%v:%v}", n.key, n.value)
+		return fmt.Sprintf("(%v:%v)", n.key, n.value)
 	} else {
-		return fmt.Sprintf("R{%v:%v}", n.key, n.value)
+		return fmt.Sprintf("[%v:%v]", n.key, n.value)
+	}
+}
+
+func (n *Node[K, V]) KeyString() string {
+	if n.isBlack {
+		return fmt.Sprintf("(%v)", n.key)
+	} else {
+		return fmt.Sprintf("[%v]", n.key)
 	}
 }
 
