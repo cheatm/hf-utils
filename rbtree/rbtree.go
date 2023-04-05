@@ -49,12 +49,12 @@ func (n *Node[K, V]) Pair() (K, V) {
 }
 
 type RBTree[K constraints.Ordered, V interface{}] struct {
-	Root *Node[K, V]
+	root *Node[K, V]
 }
 
 func (t *RBTree[K, V]) Insert(key K, value V) {
 	var y *Node[K, V] = nil
-	x := t.Root
+	x := t.root
 	for x != nil {
 		y = x
 		if key < x.key {
@@ -68,7 +68,7 @@ func (t *RBTree[K, V]) Insert(key K, value V) {
 	}
 
 	if y == nil {
-		t.Root = &Node[K, V]{key: key, value: value, isBlack: BLACK}
+		t.root = &Node[K, V]{key: key, value: value, isBlack: BLACK}
 	} else {
 		c := &Node[K, V]{key: key, value: value, isBlack: RED, parent: y}
 		if key < y.key {
@@ -101,7 +101,7 @@ func (t *RBTree[K, V]) InsertFix(x *Node[K, V]) {
 	if u != nil && !u.isBlack {
 		// Uncle, Parent: [RED]
 		// GrandParent: (BLACK)
-		// Fix inbalanced type RRB
+		//
 		//       (g)       ->[g]
 		//       / \         / \
 		//     [p] [u]  => (p) (u)
@@ -110,7 +110,7 @@ func (t *RBTree[K, V]) InsertFix(x *Node[K, V]) {
 
 		u.isBlack = BLACK
 		p.isBlack = BLACK
-		if g != t.Root {
+		if g != t.root {
 			g.isBlack = RED
 			t.InsertFix(g)
 		}
@@ -123,6 +123,7 @@ func (t *RBTree[K, V]) InsertFix(x *Node[K, V]) {
 
 		if p.left == x {
 			if pl {
+				// LL:
 				//     (g)            (p)
 				//     / \            / \
 				//   [p] (u)   =>   [x] [g]
@@ -140,6 +141,7 @@ func (t *RBTree[K, V]) InsertFix(x *Node[K, V]) {
 				p.AddRight(g)
 
 			} else {
+				// RL
 				//   (g)              (x)
 				//   / \            /     \
 				// (u) [p]   =>   [g]     [p]
@@ -167,6 +169,7 @@ func (t *RBTree[K, V]) InsertFix(x *Node[K, V]) {
 
 		} else {
 			if pl {
+				// LR:
 				//   (g)              (x)
 				//   / \            /     \
 				// [p] (u)   =>   [p]     [g]
@@ -192,6 +195,7 @@ func (t *RBTree[K, V]) InsertFix(x *Node[K, V]) {
 				x.AddLeft(p)
 
 			} else {
+				// RR
 				//   (g)            (p)
 				//   / \            / \
 				// (u) [p]   =>   [g] [x]
@@ -227,7 +231,7 @@ func (t *RBTree[K, V]) raiseNode(x, g *Node[K, V]) {
 		}
 	} else {
 		// g is root
-		t.Root = x
+		t.root = x
 	}
 }
 
@@ -237,7 +241,7 @@ func (t *RBTree[K, V]) Delete(key K) bool {
 }
 
 func (t *RBTree[K, V]) Get(key K) (value V, ok bool) {
-	node := t.Root
+	node := t.root
 	for node != nil {
 		if key < node.key {
 			node = node.left
@@ -253,7 +257,7 @@ func (t *RBTree[K, V]) Get(key K) (value V, ok bool) {
 }
 
 func (t *RBTree[K, V]) GetNode(key K) *Node[K, V] {
-	node := t.Root
+	node := t.root
 	for node != nil {
 		if key < node.key {
 			node = node.left
