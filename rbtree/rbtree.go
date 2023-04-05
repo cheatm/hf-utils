@@ -22,6 +22,20 @@ type Node[K constraints.Ordered, V interface{}] struct {
 	value   V
 }
 
+func (node *Node[K, V]) AddLeft(child *Node[K, V]) {
+	node.left = child
+	if child != nil {
+		child.parent = node
+	}
+}
+
+func (node *Node[K, V]) AddRight(child *Node[K, V]) {
+	node.right = child
+	if child != nil {
+		child.parent = node
+	}
+}
+
 func (n *Node[K, V]) GoString() string {
 	if n.isBlack {
 		return fmt.Sprintf("B{%v:%v}", n.key, n.value)
@@ -76,31 +90,145 @@ func (t *RBTree[K, V]) InsertFix(x *Node[K, V]) {
 	}
 	g := p.parent
 	var u *Node[K, V]
+	pl := false
 	if g.left == p {
 		u = g.right
+		pl = true
 	} else {
 		u = g.left
 	}
 
-	if u != nil {
-		if !u.isBlack {
-			//      B       ->R
-			//     /\        /\
-			//    R  R  =>  B  B
-			//   /         /
-			//->R         R
+	if u != nil && !u.isBlack {
+		// Uncle, Parent: [RED]
+		// GrandParent: (BLACK)
+		// Fix inbalanced type RRB
+		//       (g)       ->[g]
+		//       / \         / \
+		//     [p] [u]  => (p) (u)
+		//     /           /
+		// ->[x]         [x]
 
-			u.isBlack = BLACK
-			p.isBlack = BLACK
-			if g != t.Root {
+		u.isBlack = BLACK
+		p.isBlack = BLACK
+		if g != t.Root {
+			g.isBlack = RED
+			t.InsertFix(g)
+		}
+
+		return
+	} else {
+		// Parent: [RED]
+		// Grand: (BLACK)
+		// Uncle: (BLACK) or (nil)
+
+		if p.left == x {
+			if pl {
+				//     (g)            (p)
+				//     / \            / \
+				//   [p] (u)   =>   [x] [g]
+				//   / \                / \
+				// [x] (o)            (o) (u)
+
+				// [P] -> (p) and raise (p)
+				t.raiseNode(p, g)
+
+				// (o) -> (g).left
+				g.AddLeft(p.right)
+
+				// (g) -> [g] -> (p).right
 				g.isBlack = RED
-				t.InsertFix(g)
+				p.AddRight(g)
+
+			} else {
+				//   (g)              (x)
+				//   / \            /     \
+				// (u) [p]   =>   [g]     [p]
+				//     /          / \     /
+				//   [x]        (u) (l) (r)
+				//   / \
+				// (l) (r)
+
+				// [x] -> (x) and raise (x)
+				t.raiseNode(x, g)
+				// (r) -> [p].left
+				p.AddLeft(x.right)
+
+				// (l) -> [g].right
+				g.AddRight(x.left)
+
+				// (g) -> [g] -> (x).left
+				g.isBlack = RED
+				x.AddLeft(g)
+
+				// [p] -> (x).right
+				x.AddRight(p)
+
 			}
 
-			return
+		} else {
+			if pl {
+				//   (g)              (x)
+				//   / \            /     \
+				// [p] (u)   =>   [p]     [g]
+				//   \              \     / \
+				//   [x]            (l) (r) (u)
+				//   / \
+				// (l) (r)
+
+				// [x] -> (x) and raise (x)
+				t.raiseNode(x, g)
+
+				// (l) -> [p].right
+				p.AddRight(x.left)
+
+				// (r) -> [g].left
+				g.AddLeft(x.right)
+
+				// (g) -> [g] -> (x).right
+				g.isBlack = RED
+				x.AddRight(g)
+
+				// [p] -> (x).left
+				x.AddLeft(p)
+
+			} else {
+				//   (g)            (p)
+				//   / \            / \
+				// (u) [p]   =>   [g] [x]
+				//     / \        / \
+				//   (o) [x]    (u) (o)
+
+				// [P] -> (p) and raise (p)
+				t.raiseNode(p, g)
+
+				// (o) -> (g).right
+				g.AddRight(p.left)
+				// (g) -> [g] -> (p).left
+				g.isBlack = RED
+				p.AddLeft(g)
+
+			}
+
 		}
+
 	}
 
+}
+
+// [x] -> (x) and replace (g)'s position
+func (t *RBTree[K, V]) raiseNode(x, g *Node[K, V]) {
+	x.isBlack = BLACK
+	if g.parent != nil {
+		// g is not root
+		if g.parent.left == g {
+			g.parent.AddLeft(x)
+		} else {
+			g.parent.AddRight(x)
+		}
+	} else {
+		// g is root
+		t.Root = x
+	}
 }
 
 func (t *RBTree[K, V]) Delete(key K) bool {
