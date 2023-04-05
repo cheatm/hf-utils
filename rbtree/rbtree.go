@@ -222,7 +222,7 @@ func (t *RBTree[K, V]) InsertFix(x *Node[K, V]) {
 // [x] -> (x) and replace (g)'s position
 func (t *RBTree[K, V]) raiseNode(x, g *Node[K, V]) {
 	x.isBlack = BLACK
-	if g.parent != nil {
+	if t.root != g {
 		// g is not root
 		if g.parent.left == g {
 			g.parent.AddLeft(x)
@@ -232,6 +232,7 @@ func (t *RBTree[K, V]) raiseNode(x, g *Node[K, V]) {
 	} else {
 		// g is root
 		t.root = x
+		x.parent = nil
 	}
 }
 

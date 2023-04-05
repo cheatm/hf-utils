@@ -186,18 +186,13 @@ func TestFixLL(t *testing.T) {
 	// assertNode(t, n1, 1, RED)
 	// assertNode(t, n2, 2, BLACK)
 
-	//   (1) (3)
-	//   /
-	// [0]
-
 	tree.Insert(0, 0)
-
-	assertNode(t, tree.root, 4, BLACK)
-	// CheckTree(
-	// 	t, tree,
-	// 	[]int{0, 1, 2, 3, 4, 5, 6, 7},
-	// 	[]Color{RED, BLACK, RED, BLACK, BLACK, BLACK, RED, BLACK},
-	// )
+	// assertNode(t, tree.root.left, 4, BLACK)
+	CheckTree(
+		t, tree,
+		[]int{0, 1, 2, 3, 4, 5, 6, 7},
+		[]Color{RED, BLACK, RED, BLACK, BLACK, BLACK, RED, BLACK},
+	)
 
 }
 
