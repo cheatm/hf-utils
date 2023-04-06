@@ -245,8 +245,131 @@ func (t *RBTree[K, V]) raiseNode(x, g *Node[K, V]) {
 }
 
 func (t *RBTree[K, V]) Delete(key K) bool {
+	node := t.GetNode(key)
+	if node == nil {
+		return false
+	}
+DELETE:
+	if node.left == nil && node.right == nil {
+		// is leaf
+		if node.isBlack {
+			// BLACK
+			if node == t.root {
+				// tree root
+				t.root = nil
+			} else {
+				// not tree root
+				t.FixDelete(node)
+			}
+		} else {
+			// RED
+			if node.parent.left == node {
+				node.parent.left = nil
+			} else {
+				node.parent.right = nil
+			}
+			node.parent = nil
+		}
+	} else if node.left == nil {
+		// has right
+		x := node.right
+		for x.left != nil {
+			x = x.left
+		}
+		node.key = x.key
+		node.value = x.value
+		node = x
+		goto DELETE
 
-	return false
+	} else {
+		// has left
+		x := node.left
+		for x.right != nil {
+			x = x.right
+		}
+		node.key = x.key
+		node.value = x.value
+		node = x
+		goto DELETE
+	}
+
+	return true
+}
+
+func (t *RBTree[K, V]) FixDelete(x *Node[K, V]) {
+	p := x.parent
+	if p == x.left {
+		b := x.right
+		//   p
+		//  / \
+		// x  b
+		if p.isBlack {
+			if b.isBlack {
+				//   (p)
+				//   / \
+				// (x) (b)
+				t.FixDeleteXBB(x, p, b)
+			} else {
+				//   (p)
+				//   / \
+				// (x) [b]
+				t.FixDeleteXBR(x, p, b)
+			}
+		} else {
+			//   [p]
+			//   / \
+			// (x) (b)
+			t.FixDeleteXRB(x, p, b)
+		}
+	} else {
+		b := x.right
+		//   p
+		//  / \
+		// b  x
+		if p.isBlack {
+			if b.isBlack {
+				//   (p)
+				//   / \
+				// (b) (x)
+				t.FixDeleteBBX(x, p, b)
+			} else {
+				//   (p)
+				//   / \
+				// [b] (x)
+				t.FixDeleteRBX(x, p, b)
+			}
+		} else {
+			//   [p]
+			//   / \
+			// (b) (x)
+			t.FixDeleteBRX(x, p, b)
+		}
+	}
+
+}
+
+func (t *RBTree[K, V]) FixDeleteXRB(x, p, b *Node[K, V]) {
+
+}
+
+func (t *RBTree[K, V]) FixDeleteBRX(x, p, b *Node[K, V]) {
+
+}
+
+func (t *RBTree[K, V]) FixDeleteXBR(x, p, b *Node[K, V]) {
+
+}
+
+func (t *RBTree[K, V]) FixDeleteRBX(x, p, b *Node[K, V]) {
+
+}
+
+func (t *RBTree[K, V]) FixDeleteXBB(x, p, b *Node[K, V]) {
+
+}
+
+func (t *RBTree[K, V]) FixDeleteBBX(x, p, b *Node[K, V]) {
+
 }
 
 func (t *RBTree[K, V]) Get(key K) (value V, ok bool) {
