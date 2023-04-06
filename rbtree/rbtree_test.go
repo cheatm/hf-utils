@@ -90,6 +90,21 @@ func assertNode(t *testing.T, node *IntNode, key int, color Color) {
 	assert.Equal(t, color, node.isBlack, "Color")
 }
 
+func MidPrint(tree *IntRBTree) []int {
+	arr := []int{}
+	return MakeMidSearch(tree.root, arr)
+}
+
+func MakeMidSearch(node *IntNode, arr []int) []int {
+	if node == nil {
+		return arr
+	}
+	arr = MakeMidSearch(node.left, arr)
+	arr = append(arr, node.key)
+	arr = MakeMidSearch(node.right, arr)
+	return arr
+}
+
 func TestFixLL(t *testing.T) {
 	// LL:
 
@@ -170,6 +185,99 @@ func TestFixLL(t *testing.T) {
 		t, tree,
 		[]int{0, 1, 2, 3, 4, 5, 6, 7},
 		[]Color{RED, BLACK, RED, BLACK, BLACK, BLACK, RED, BLACK},
+	)
+
+	midSequence := MidPrint(tree)
+	t.Logf("MidSequence: %v\n", midSequence)
+}
+
+func TestFixRR(t *testing.T) {
+	tree := &IntRBTree{}
+
+	tree.Insert(0, 0)
+	tree.Insert(1, 0)
+	tree.Insert(2, 0)
+	CheckTree(
+		t, tree,
+		[]int{0, 1, 2},
+		[]Color{RED, BLACK, RED},
+	)
+
+	tree.Insert(3, 0)
+	CheckTree(
+		t, tree,
+		[]int{0, 1, 2, 3},
+		[]Color{BLACK, BLACK, BLACK, RED},
+	)
+
+	tree.Insert(4, 0)
+	CheckTree(
+		t, tree,
+		[]int{0, 1, 2, 3, 4},
+		[]Color{BLACK, BLACK, RED, BLACK, RED},
+	)
+
+	tree.Insert(5, 0)
+	CheckTree(
+		t, tree,
+		[]int{0, 1, 2, 3, 4, 5},
+		[]Color{BLACK, BLACK, BLACK, RED, BLACK, RED},
+	)
+
+	tree.Insert(6, 0)
+	CheckTree(
+		t, tree,
+		[]int{0, 1, 2, 3, 4, 5, 6},
+		[]Color{BLACK, BLACK, BLACK, RED, RED, BLACK, RED},
+	)
+
+	tree.Insert(7, 0)
+	CheckTree(
+		t, tree,
+		[]int{0, 1, 2, 3, 4, 5, 6, 7},
+		[]Color{BLACK, RED, BLACK, BLACK, BLACK, RED, BLACK, RED},
+	)
+
+}
+
+func TestFixRL(t *testing.T) {
+	tree := &IntRBTree{}
+
+	tree.Insert(0, 0)
+	tree.Insert(2, 0)
+	tree.Insert(1, 0)
+	CheckTree(
+		t, tree,
+		[]int{0, 1, 2},
+		[]Color{RED, BLACK, RED},
+	)
+
+	tree.Insert(4, 0)
+	CheckTree(
+		t, tree,
+		[]int{0, 1, 2, 4},
+		[]Color{BLACK, BLACK, BLACK, RED},
+	)
+
+	tree.Insert(3, 0)
+	CheckTree(
+		t, tree,
+		[]int{0, 1, 2, 3, 4},
+		[]Color{BLACK, BLACK, RED, BLACK, RED},
+	)
+
+	tree.Insert(7, 0)
+	CheckTree(
+		t, tree,
+		[]int{0, 1, 2, 3, 4, 7},
+		[]Color{BLACK, BLACK, BLACK, RED, BLACK, RED},
+	)
+
+	tree.Insert(5, 0)
+	CheckTree(
+		t, tree,
+		[]int{0, 1, 2, 3, 4, 5, 7},
+		[]Color{BLACK, BLACK, BLACK, RED, RED, BLACK, RED},
 	)
 
 }
