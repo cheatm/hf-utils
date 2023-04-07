@@ -36,6 +36,14 @@ func (node *Node[K, V]) AddRight(child *Node[K, V]) {
 	}
 }
 
+func (node *Node[K, V]) Sibling() *Node[K, V] {
+	if node == node.parent.left {
+		return node.parent.right
+	} else {
+		return node.parent.left
+	}
+}
+
 func (n *Node[K, V]) GoString() string {
 	if n.isBlack {
 		return fmt.Sprintf("(%v:%v)", n.key, n.value)
@@ -249,127 +257,215 @@ func (t *RBTree[K, V]) Delete(key K) bool {
 	if node == nil {
 		return false
 	}
-DELETE:
-	if node.left == nil && node.right == nil {
-		// is leaf
-		if node.isBlack {
-			// BLACK
-			if node == t.root {
-				// tree root
-				t.root = nil
-			} else {
-				// not tree root
-				t.FixDelete(node)
-			}
-		} else {
-			// RED
-			if node.parent.left == node {
-				node.parent.left = nil
-			} else {
-				node.parent.right = nil
-			}
-			node.parent = nil
-		}
-	} else if node.left == nil {
-		// has right
-		x := node.right
+	// set x as node's next
+	var x *Node[K, V]
+	if node.right != nil {
+		x = node.right
 		for x.left != nil {
 			x = x.left
 		}
-		node.key = x.key
-		node.value = x.value
-		node = x
-		goto DELETE
+		x.key = node.key
+		x.value = node.value
+	} else {
+		x = node
+	}
+
+	//    x
+	//   / \
+	// nil  c
+
+	var c *Node[K, V]
+	if x.left == nil {
+		c = x.right
+	} else {
+		c = x.left
+	}
+
+	// replace x with c
+	xl := false
+	if x == t.root {
+		t.root = c
+		if c != nil {
+			c.parent = nil
+		} else {
+			return true
+		}
 
 	} else {
-		// has left
-		x := node.left
-		for x.right != nil {
-			x = x.right
+		if x == x.parent.left {
+			x.parent.AddLeft(c)
+			xl = true
+		} else {
+			x.parent.AddRight(c)
 		}
-		node.key = x.key
-		node.value = x.value
-		node = x
-		goto DELETE
+	}
+
+	if x.isBlack {
+		if IsBlack(c) {
+			t.FixReplacedX(c, x.parent, xl)
+		} else {
+			c.isBlack = BLACK
+		}
+
 	}
 
 	return true
 }
 
-func (t *RBTree[K, V]) FixDelete(x *Node[K, V]) {
-	p := x.parent
-	if p == x.left {
-		b := x.right
-		//   p
-		//  / \
-		// x  b
-		if p.isBlack {
-			if b.isBlack {
-				//   (p)
-				//   / \
-				// (x) (b)
-				t.FixDeleteXBB(x, p, b)
+func (t *RBTree[K, V]) FixReplacedX(x *Node[K, V], p *Node[K, V], xl bool) {
+	if p == nil {
+		return
+	}
+	if p.isBlack {
+		if xl {
+			s := p.right
+			if IsBlack(s) {
+				t.FixBBB(p, s)
 			} else {
-				//   (p)
-				//   / \
-				// (x) [b]
-				t.FixDeleteXBR(x, p, b)
+				t.FixXBR(p, s)
 			}
 		} else {
-			//   [p]
-			//   / \
-			// (x) (b)
-			t.FixDeleteXRB(x, p, b)
+			s := p.left
+			if IsBlack(s) {
+				t.FixBBB(p, s)
+			} else {
+				t.FixRBX(p, s)
+			}
 		}
 	} else {
-		b := x.right
-		//   p
-		//  / \
-		// b  x
-		if p.isBlack {
-			if b.isBlack {
-				//   (p)
-				//   / \
-				// (b) (x)
-				t.FixDeleteBBX(x, p, b)
-			} else {
-				//   (p)
-				//   / \
-				// [b] (x)
-				t.FixDeleteRBX(x, p, b)
-			}
+		if xl {
+			t.FixXRB(p, p.right)
 		} else {
-			//   [p]
-			//   / \
-			// (b) (x)
-			t.FixDeleteBRX(x, p, b)
+			t.FixBRX(p, p.left)
 		}
+	}
+}
+
+func IsBlack[K constraints.Ordered, V interface{}](x *Node[K, V]) Color {
+	if x == nil {
+		return BLACK
+	}
+	return x.isBlack
+}
+
+func (t *RBTree[K, V]) FixBRX(p, s *Node[K, V]) {
+
+}
+
+func (t *RBTree[K, V]) FixXRB(p, s *Node[K, V]) {
+	// case 4
+	//   [p]
+	//   / \
+	// (x) (s)
+START:
+	if IsBlack(s.left) && IsBlack(s.right) {
+		//   (s)
+		//   / \
+		// (l) (r)
+		s.isBlack = RED
+		p.isBlack = BLACK
+	} else if !IsBlack(s.right) {
+		//  [p]
+		//    \
+		//   (s)
+		//   / \
+		//  l  [r]
+		if p == t.root {
+			t.root = s
+			s.parent = nil
+		} else {
+			if p == p.parent.left {
+				p.parent.left = s
+			} else {
+				p.parent.right = s
+			}
+			s.parent = p.parent
+		}
+		s.isBlack = p.isBlack
+
+		p.AddRight(s.left)
+		p.isBlack = BLACK
+		s.AddLeft(p)
+
+	} else {
+		//   (s)
+		//   / \
+		// [l] (r)
+		sl := s.left
+		p.right = sl
+		sl.parent = p
+		sl.isBlack = BLACK
+
+		s.left = sl.right
+		s.left.parent = s
+
+		sl.right = s
+		s.parent = sl
+		s.isBlack = RED
+		s = sl
+		//  [p]
+		//    \
+		//   (l)
+		//     \
+		//     [s]
+		//      \
+		//      (r)
+		goto START
 	}
 
 }
 
-func (t *RBTree[K, V]) FixDeleteXRB(x, p, b *Node[K, V]) {
+func (t *RBTree[K, V]) FixBBB(p, s *Node[K, V]) {
+	// case 3
 
+	//   (p)         (p)  -> set p as x
+	//   / \          \
+	// (x) (s) =>    [s]
+	//     / \
+	//   (l) (r)
+
+	//     (p)
+	//     / \
+	//   (s) (x)
+	//   / \
+	// (l) (r)
+
+	s.isBlack = RED
+	if p.parent == nil {
+		t.FixReplacedX(p, p.parent, false)
+	} else {
+		t.FixReplacedX(p, p.parent, p == p.parent.left)
+	}
 }
 
-func (t *RBTree[K, V]) FixDeleteBRX(x, p, b *Node[K, V]) {
+func (t *RBTree[K, V]) FixXBR(p, s *Node[K, V]) {
+	// case 2
+	//   (p)           (s)
+	//   / \           / \
+	// (x) [s]   =>  [p] (r)
+	//     / \       / \
+	//   (l) (r)   (x) (l)
 
+	if p == t.root {
+		t.root = s
+		s.parent = nil
+	} else {
+		if p == p.parent.left {
+			p.parent.AddLeft(s)
+		} else {
+			p.parent.AddRight(s)
+		}
+	}
+	s.isBlack = BLACK
+
+	p.AddRight(s.left)
+	s.AddLeft(p)
+	p.isBlack = RED
+	t.FixXRB(p, s)
 }
 
-func (t *RBTree[K, V]) FixDeleteXBR(x, p, b *Node[K, V]) {
-
-}
-
-func (t *RBTree[K, V]) FixDeleteRBX(x, p, b *Node[K, V]) {
-
-}
-
-func (t *RBTree[K, V]) FixDeleteXBB(x, p, b *Node[K, V]) {
-
-}
-
-func (t *RBTree[K, V]) FixDeleteBBX(x, p, b *Node[K, V]) {
-
+func (t *RBTree[K, V]) FixRBX(p, s *Node[K, V]) {
+	// case 2
 }
 
 func (t *RBTree[K, V]) Get(key K) (value V, ok bool) {
