@@ -349,7 +349,65 @@ func IsBlack[K constraints.Ordered, V interface{}](x *Node[K, V]) Color {
 }
 
 func (t *RBTree[K, V]) FixBRX(p, s *Node[K, V]) {
+	// case 4
+	//   [p]
+	//   / \
+	// (s) (x)
+START:
+	if IsBlack(s.left) && IsBlack(s.right) {
+		//   (s)
+		//   / \
+		// (l) (r)
+		s.isBlack = RED
+		p.isBlack = BLACK
+	} else if !IsBlack(s.left) {
+		//     [p]
+		//     /
+		//   (s)
+		//   / \
+		//  [l] r
+		if p == t.root {
+			t.root = s
+			s.parent = nil
+		} else {
+			if p == p.parent.right {
+				p.parent.right = s
+			} else {
+				p.parent.left = s
+			}
+			s.parent = p.parent
+		}
+		s.isBlack = p.isBlack
 
+		p.AddLeft(s.right)
+		p.isBlack = BLACK
+		s.AddRight(s.left)
+
+	} else {
+		//   (s)
+		//   / \
+		// (l) [r]
+		sr := s.right
+		p.left = s
+		sr.parent = p
+		sr.isBlack = BLACK
+
+		s.right = sr.right
+		s.right.parent = s
+
+		sr.left = s
+		s.parent = sr
+		s.isBlack = RED
+		s = sr
+		//       [p]
+		//       /
+		//     (r)
+		//     /
+		//   [s]
+		//   /
+		// (l)
+		goto START
+	}
 }
 
 func (t *RBTree[K, V]) FixXRB(p, s *Node[K, V]) {
@@ -446,26 +504,65 @@ func (t *RBTree[K, V]) FixXBR(p, s *Node[K, V]) {
 	//     / \       / \
 	//   (l) (r)   (x) (l)
 
-	if p == t.root {
-		t.root = s
-		s.parent = nil
-	} else {
-		if p == p.parent.left {
-			p.parent.AddLeft(s)
-		} else {
-			p.parent.AddRight(s)
-		}
-	}
-	s.isBlack = BLACK
+	// if p == t.root {
+	// 	t.root = s
+	// 	s.parent = nil
+	// } else {
+	// 	if p == p.parent.left {
+	// 		p.parent.AddLeft(s)
+	// 	} else {
+	// 		p.parent.AddRight(s)
+	// 	}
+	// }
+	// s.isBlack = BLACK
+	t.XReplaceN(s, p)
 
 	p.AddRight(s.left)
 	s.AddLeft(p)
 	p.isBlack = RED
-	t.FixXRB(p, s)
+	t.FixXRB(p, p.right)
 }
 
 func (t *RBTree[K, V]) FixRBX(p, s *Node[K, V]) {
 	// case 2
+	//     (p)            (s)
+	//     / \            / \
+	//   [s] (x)   =>   (l) [p]
+	//   / \                / \
+	// (l) (r)   	  	  (r) (x)
+
+	// if p == t.root {
+	// 	t.root = s
+	// 	s.parent = nil
+	// } else {
+	// 	if p == p.parent.right {
+	// 		p.parent.AddRight(s)
+	// 	} else {
+	// 		p.parent.AddLeft(s)
+	// 	}
+	// }
+	// s.isBlack = BLACK
+	t.XReplaceN(s, p)
+
+	p.AddLeft(s.right)
+	s.AddRight(p)
+	p.isBlack = RED
+	t.FixBRX(p, p.left)
+}
+
+func (t *RBTree[K, V]) XReplaceN(x, n *Node[K, V]) {
+	if n != t.root {
+		if n == n.parent.left {
+			n.parent.AddRight(x)
+		} else {
+			n.parent.AddLeft(x)
+		}
+		x.isBlack = n.isBlack
+	} else {
+		t.root = x
+		x.parent = nil
+		x.isBlack = BLACK
+	}
 }
 
 func (t *RBTree[K, V]) Get(key K) (value V, ok bool) {
