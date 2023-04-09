@@ -257,15 +257,17 @@ func (t *RBTree[K, V]) Delete(key K) bool {
 	if node == nil {
 		return false
 	}
-	// set x as node's next
+	// set x as node's prev
 	var x *Node[K, V]
-	if node.right != nil {
-		x = node.right
-		for x.left != nil {
-			x = x.left
+	if node.left != nil {
+		x = node.left
+		for x.right != nil {
+			x = x.right
 		}
-		x.key = node.key
-		x.value = node.value
+
+		// replace node with x
+		node.key = x.key
+		node.value = x.value
 	} else {
 		x = node
 	}

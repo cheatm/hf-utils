@@ -308,3 +308,45 @@ func MidCheckNode(t *testing.T, index *int, node *IntNode, keys []int, colors []
 	}
 
 }
+
+func TestDelete(t *testing.T) {
+	tree := &IntRBTree{}
+
+	tree.Insert(0, 0)
+	tree.Insert(1, 0)
+	tree.Insert(2, 0)
+	tree.Insert(3, 0)
+	tree.Insert(4, 0)
+	tree.Insert(5, 0)
+	tree.Insert(6, 0)
+	tree.Insert(7, 0)
+
+	tree.Delete(7)
+	CheckTree(
+		t, tree,
+		[]int{0, 1, 2, 3, 4, 5, 6},
+		[]Color{BLACK, RED, BLACK, BLACK, BLACK, RED, BLACK},
+	)
+
+	tree.Delete(6)
+	CheckTree(
+		t, tree,
+		[]int{0, 1, 2, 3, 4, 5},
+		[]Color{BLACK, RED, BLACK, BLACK, RED, BLACK},
+	)
+
+	tree.Delete(5)
+	CheckTree(
+		t, tree,
+		[]int{0, 1, 2, 3, 4},
+		[]Color{BLACK, RED, BLACK, BLACK, BLACK},
+	)
+
+	tree.Delete(1)
+	CheckTree(
+		t, tree,
+		[]int{0, 2, 3, 4},
+		[]Color{BLACK, RED, BLACK, BLACK},
+	)
+
+}
