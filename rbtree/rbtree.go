@@ -44,7 +44,7 @@ func (node *Node[K, V]) Sibling() *Node[K, V] {
 	}
 }
 
-func (n *Node[K, V]) GoString() string {
+func (n *Node[K, V]) String() string {
 	if n.isBlack {
 		return fmt.Sprintf("(%v:%v)", n.key, n.value)
 	} else {
@@ -69,10 +69,14 @@ type RBTree[K constraints.Ordered, V interface{}] struct {
 }
 
 func (t *RBTree[K, V]) Insert(key K, value V) {
-	var y *Node[K, V] = nil
-	x := t.root
+	// x: new node
+	// p: x parent
+	// g: p parent
+	// u: x uncle or y sibling
+	var x, p, g, tmp *Node[K, V]
+	x = t.root
 	for x != nil {
-		y = x
+		p = x
 		if key < x.key {
 			x = x.left
 		} else if x.key < key {
@@ -83,152 +87,215 @@ func (t *RBTree[K, V]) Insert(key K, value V) {
 		}
 	}
 
-	if y == nil {
+	// tree is empty
+	if p == nil {
 		t.root = &Node[K, V]{key: key, value: value, isBlack: BLACK}
-	} else {
-		c := &Node[K, V]{key: key, value: value, isBlack: RED, parent: y}
-		if key < y.key {
-			y.left = c
-		} else {
-			y.right = c
-		}
-
-		t.InsertFix(c)
-
-	}
-
-}
-
-func (t *RBTree[K, V]) InsertFix(x *Node[K, V]) {
-	p := x.parent
-	if p.isBlack {
 		return
 	}
-	g := p.parent
-	var u *Node[K, V]
-	pl := false
-	if g.left == p {
-		u = g.right
-		pl = true
+
+	// x: new node
+	x = &Node[K, V]{key: key, value: value, isBlack: RED, parent: p}
+	if key < p.key {
+		p.left = x
 	} else {
-		u = g.left
+		p.right = x
 	}
 
-	if u != nil && !u.isBlack {
-		// Uncle, Parent: [RED]
-		// GrandParent: (BLACK)
-		//
-		//       (g)       ->[g]
-		//       / \         / \
-		//     [p] [u]  => (p) (u)
-		//     /           /
-		// ->[x]         [x]
+	// t.InsertFix(c)
 
-		u.isBlack = BLACK
-		p.isBlack = BLACK
-		if g != t.root {
-			g.isBlack = RED
-			t.InsertFix(g)
+	for {
+		// Loop invariant: node is red.
+		if x == t.root {
+			/*
+			 * The inserted node is root. Either this is the
+			 * first node, or we recursed at Case 1 below and
+			 * are no longer violating 4).
+			 */
+			x.isBlack = BLACK
+			break
 		}
 
-		return
-	} else {
-		// Parent: [RED]
-		// Grand: (BLACK)
-		// Uncle: (BLACK) or (nil)
+		if p.isBlack {
+			/*
+			 * If there is a black parent, we are done.
+			 * Otherwise, take some corrective action as,
+			 * per 4), we don't want a red root or two
+			 * consecutive red nodes.
+			 */
+			break
+		}
 
-		if p.left == x {
-			if pl {
-				// LL:
-				//     (g)            (p)
-				//     / \            / \
-				//   [p] (u)   =>   [x] [g]
-				//   / \                / \
-				// [x] (o)            (o) (u)
+		g = p.parent
+		tmp = g.right // tmp as u
 
-				// [P] -> (p) and raise (p)
-				t.raiseNode(p, g)
-
-				// (o) -> (g).left
-				g.AddLeft(p.right)
-
-				// (g) -> [g] -> (p).right
+		if p != tmp {
+			// p = g.left
+			if !IsBlack(tmp) {
+				/*
+				 * Case 1 - node's uncle is red (color flips).
+				 *
+				 *       G            g
+				 *      / \          / \
+				 *     p   u  -->   P   U
+				 *    /            /
+				 *   x            x
+				 *
+				 * However, since g's parent might be red, and
+				 * 4) does not allow this, we need to recurse
+				 * at g.
+				 */
+				p.isBlack = BLACK
+				tmp.isBlack = BLACK
 				g.isBlack = RED
-				p.AddRight(g)
 
-			} else {
-				// RL
-				//   (g)              (x)
-				//   / \            /     \
-				// (u) [p]   =>   [g]     [p]
-				//     /          / \     /
-				//   [x]        (u) (l) (r)
-				//   / \
-				// (l) (r)
+				x = g
+				p = g.parent
 
-				// [x] -> (x) and raise (x)
-				t.raiseNode(x, g)
-				// (r) -> [p].left
-				p.AddLeft(x.right)
-
-				// (l) -> [g].right
-				g.AddRight(x.left)
-
-				// (g) -> [g] -> (x).left
-				g.isBlack = RED
-				x.AddLeft(g)
-
-				// [p] -> (x).right
-				x.AddRight(p)
-
+				continue
 			}
 
-		} else {
-			if pl {
-				// LR:
-				//   (g)              (x)
-				//   / \            /     \
-				// [p] (u)   =>   [p]     [g]
-				//   \              \     / \
-				//   [x]            (l) (r) (u)
-				//   / \
-				// (l) (r)
+			tmp = p.right
+			if x == tmp {
+				/*
+				 * Case 2 - node's uncle is black and node is
+				 * the parent's right child (left rotate at parent).
+				 *
+				 *      G             G
+				 *     / \           / \
+				 *    p   U  -->    x   U
+				 *     \           /
+				 *      x         p
+				 *     /           \
+				 *    L             L
+				 * This still leaves us in violation of 4), the
+				 * continuation into Case 3 will fix that.
+				 */
 
-				// [x] -> (x) and raise (x)
-				t.raiseNode(x, g)
-
-				// (l) -> [p].right
 				p.AddRight(x.left)
-
-				// (r) -> [g].left
-				g.AddLeft(x.right)
-
-				// (g) -> [g] -> (x).right
-				g.isBlack = RED
-				x.AddRight(g)
-
-				// [p] -> (x).left
 				x.AddLeft(p)
-
-			} else {
-				// RR
-				//   (g)            (p)
-				//   / \            / \
-				// (u) [p]   =>   [g] [x]
-				//     / \        / \
-				//   (o) [x]    (u) (o)
-
-				// [P] -> (p) and raise (p)
-				t.raiseNode(p, g)
-
-				// (o) -> (g).right
-				g.AddRight(p.left)
-				// (g) -> [g] -> (p).left
-				g.isBlack = RED
-				p.AddLeft(g)
-
+				g.AddLeft(x)
+				p = x
+				tmp = p.right
 			}
 
+			/*
+			 * Case 3 - node's uncle is black and node is
+			 * the parent's left child (right rotate at gparent).
+			 *
+			 *        G           P
+			 *       / \         / \
+			 *      p   U  -->  x   g
+			 *     / \             / \
+			 *    x  (r)          R   U
+			 */
+
+			if tmp != nil {
+				g.AddLeft(tmp)
+				tmp.isBlack = BLACK
+			} else {
+				g.left = nil
+			}
+			g.isBlack = RED
+
+			if g == t.root {
+				t.root = p
+				p.parent = nil
+			} else {
+				if g == g.parent.left {
+					g.parent.AddLeft(p)
+				} else {
+					g.parent.AddRight(p)
+				}
+			}
+
+			p.AddRight(g)
+			p.isBlack = BLACK
+			break
+
+		} else {
+			// p = g.right
+			tmp = g.left
+			if !IsBlack(tmp) {
+				/*
+				 * Case 1 - node's uncle is red (color flips).
+				 *
+				 *       G            g
+				 *      / \          / \
+				 *     u   p  -->   U   P
+				 *        /            /
+				 *       x            x
+				 *
+				 * However, since g's parent might be red, and
+				 * 4) does not allow this, we need to recurse
+				 * at g.
+				 */
+				p.isBlack = BLACK
+				tmp.isBlack = BLACK
+				g.isBlack = RED
+
+				x = g
+				p = g.parent
+
+				continue
+			}
+
+			tmp = p.left
+			if x == tmp {
+				/*
+				 * Case 2 - node's uncle is black and node is
+				 * the parent's left child (right rotate at parent).
+				 *
+				 *      G             G
+				 *     / \           / \
+				 *    U   p  -->    U   x
+				 *       /               \
+				 *      x                 p
+				 *       \               /
+				 *        R             R
+				 * This still leaves us in violation of 4), the
+				 * continuation into Case 3 will fix that.
+				 */
+
+				p.AddLeft(x.right)
+				x.AddRight(p)
+				g.AddRight(x)
+				p = x
+				tmp = p.left
+			}
+
+			/*
+			 * Case 3 - node's uncle is black and node is
+			 * the parent's left child (right rotate at gparent).
+			 *
+			 *        G           P
+			 *       / \         / \
+			 *      U   p  -->  g   x
+			 *         / \     / \
+			 *       (l)  x   U   L
+			 */
+
+			if tmp != nil {
+				g.AddRight(tmp)
+				tmp.isBlack = BLACK
+			} else {
+				g.right = nil
+			}
+			g.isBlack = RED
+
+			if g == t.root {
+				t.root = p
+				p.parent = nil
+			} else {
+				if g == g.parent.left {
+					g.parent.AddLeft(p)
+				} else {
+					g.parent.AddRight(p)
+				}
+			}
+
+			p.AddLeft(g)
+			p.isBlack = BLACK
+			break
 		}
 
 	}
