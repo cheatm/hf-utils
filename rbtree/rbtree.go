@@ -302,13 +302,12 @@ func (t *RBTree[K, V]) Insert(key K, value V) {
 
 }
 
-func (t *RBTree[K, V]) fixDelete(n *Node[K, V]) {
+func (t *RBTree[K, V]) fixDelete(n, p *Node[K, V]) {
 	// rebalance on n after delete
 	//
 	// s: n sibling
 	// p: n parent
-	var s, p, tmp1, tmp2 *Node[K, V]
-	p = n.parent
+	var s, tmp1, tmp2 *Node[K, V]
 	for {
 		s = p.right
 		if n != s {
@@ -587,22 +586,21 @@ func (t *RBTree[K, V]) Delete(key K) bool {
 		t.root = c
 		if c != nil {
 			c.parent = nil
-		} else {
-			return true
 		}
+		return true
+
+	}
+
+	if x == x.parent.left {
+		x.parent.AddLeft(c)
 
 	} else {
-		if x == x.parent.left {
-			x.parent.AddLeft(c)
-
-		} else {
-			x.parent.AddRight(c)
-		}
+		x.parent.AddRight(c)
 	}
 
 	if x.isBlack {
 		if IsBlack(c) {
-			t.fixDelete(c)
+			t.fixDelete(c, x.parent)
 		} else {
 			c.isBlack = BLACK
 		}
