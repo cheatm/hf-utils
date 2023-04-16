@@ -302,6 +302,238 @@ func (t *RBTree[K, V]) Insert(key K, value V) {
 
 }
 
+func (t *RBTree[K, V]) fixDelete(n *Node[K, V]) {
+	// rebalance on n after delete
+	//
+	// s: n sibling
+	// p: n parent
+	var s, p, tmp1, tmp2 *Node[K, V]
+	p = n.parent
+	for {
+		s = p.right
+		if n != s {
+			// n = p.left
+			if !IsBlack(s) {
+				/*
+				 * Case 1 - left rotate at parent
+				 *
+				 *     P               S
+				 *    / \             / \
+				 *   N   s    -->    p   Sr
+				 *      / \         / \
+				 *     Sl  Sr      N   Sl
+				 */
+				tmp1 = s.left
+				p.AddRight(tmp1)
+				t.XReplaceN(s, p)
+				s.isBlack = BLACK
+				s.AddLeft(p)
+				p.isBlack = RED
+				s = tmp1
+			}
+			tmp1 = s.right
+			if IsBlack(tmp1) {
+				tmp2 = s.left
+				if IsBlack(tmp2) {
+					/*
+					 * Case 2 - sibling color flip
+					 * (p could be either color here)
+					 *
+					 *    (p)           (p)
+					 *    / \           / \
+					 *   N   S    -->  N   s
+					 *      / \           / \
+					 *     Sl  Sr        Sl  Sr
+					 *
+					 * This leaves us violating 5) which
+					 * can be fixed by flipping p to black
+					 * if it was red, or by recursing at p.
+					 * p is red when coming from Case 1.
+					 */
+					s.isBlack = RED
+					if !p.isBlack {
+						p.isBlack = BLACK
+					} else {
+						if p != t.root {
+							n = p
+							p = n.parent
+							continue
+						}
+					}
+					break
+				}
+				/*
+				 * Case 3 - right rotate at sibling
+				 * (p could be either color here)
+				 *
+				 *   (p)           (p)
+				 *   / \           / \
+				 *  N   S    -->  N   sl
+				 *     / \           / \
+				 *    sl  Sr        L   S
+				 *    /\               / \
+				 *   L  R             R  Sr
+
+				 * Note: p might be red, and then both
+				 * p and sl are red after rotation(which
+				 * breaks property 4). This is fixed in
+				 * Case 4 (in __rb_rotate_set_parents()
+				 *         which set sl the color of p
+				 *         and set p RB_BLACK)
+				 *
+				 *   (p)            (sl)
+				 *   / \            /  \
+				 *  N   sl   -->   P    S
+				 *      /\        /\    /\
+				 *     L  S      N  L  R  Sr
+				 *       / \
+				 *      R   Sr
+				 */
+
+				// tmp2: sl
+				t.XReplaceN(tmp2, p)
+				p.AddRight(tmp2.left)
+				tmp2.AddLeft(p)
+
+				s.AddLeft(tmp2.right)
+				tmp2.AddRight(s)
+
+				n = p
+				p = tmp2
+				tmp1 = s.right
+			}
+			/*
+			 * Case 4 - left rotate at parent + color flips
+			 * (p and sl could be either color here.
+			 *  After rotation, p becomes black, s acquires
+			 *  p's color, and sl keeps its color)
+			 *
+			 *      (p)             (s)
+			 *      / \             / \
+			 *     N   S     -->   P   Sr
+			 *        / \         / \
+			 *      (sl) sr      N  (sl)
+			 */
+			tmp2 = s.left
+			t.XReplaceN(s, p)
+
+			p.AddRight(tmp2)
+			s.AddLeft(p)
+			tmp1.isBlack = BLACK
+			s.isBlack = p.isBlack
+			p.isBlack = BLACK
+
+		} else {
+			// n = p.right
+			s = p.left
+			if !IsBlack(s) {
+				/*
+				 * Case 1 - left rotate at parent
+				 *
+				 *     P               S
+				 *    / \             / \
+				 *   s   N    -->    Sl   p
+				 *  / \                  / \
+				 * Sl  Sr               Sr  P
+				 */
+				tmp1 = s.right
+				p.AddLeft(tmp1)
+				t.XReplaceN(s, p)
+				s.isBlack = BLACK
+				s.AddRight(p)
+				p.isBlack = RED
+				s = tmp1
+			}
+			tmp1 = s.left
+			if IsBlack(tmp1) {
+				tmp2 = s.right
+				if IsBlack(tmp2) {
+					/*
+					 * Case 2 - sibling color flip
+					 * (p could be either color here)
+					 *
+					 *    (p)           (p)
+					 *    / \           / \
+					 *   S   N    -->  s   N
+					 *  / \           / \
+					 * Sl  Sr        Sl  Sr
+					 *
+					 * This leaves us violating 5) which
+					 * can be fixed by flipping p to black
+					 * if it was red, or by recursing at p.
+					 * p is red when coming from Case 1.
+					 */
+					s.isBlack = RED
+					if !p.isBlack {
+						p.isBlack = BLACK
+					} else {
+						if p != t.root {
+							n = p
+							p = n.parent
+							continue
+						}
+					}
+					break
+				}
+				/*
+				 * Case 3 - right rotate at sibling
+				 * (p could be either color here)
+				 *
+				 *    (p)           (p)          (sr)
+				 *    / \           / \          /  \
+				 *   S   N    -->  sr   N  -->  S    P
+				 *  / \           / \          / \  / \
+				 * Sl  sr        S   R        Sl  L R  N
+				 *     /\       / \
+				 *    L  R     Sl  L
+
+				 * Note: p might be red, and then both
+				 * p and sl are red after rotation(which
+				 * breaks property 4). This is fixed in
+				 * Case 4 (in __rb_rotate_set_parents()
+				 *         which set sl the color of p
+				 *         and set p RB_BLACK)
+				 */
+
+				// tmp2: sl
+				t.XReplaceN(tmp2, p)
+				p.AddLeft(tmp2.right)
+				tmp2.AddRight(p)
+
+				s.AddRight(tmp2.left)
+				tmp2.AddLeft(s)
+
+				n = p
+				p = tmp2
+				tmp1 = s.left
+			}
+			/*
+			 * Case 4 - left rotate at parent + color flips
+			 * (p and sl could be either color here.
+			 *  After rotation, p becomes black, s acquires
+			 *  p's color, and sl keeps its color)
+			 *
+			 *      (p)             (s)
+			 *      / \             / \
+			 *     S   N     -->   Sl  P
+			 *    / \                 / \
+			 *   sl (sr)            (sr) N
+			 */
+			tmp2 = s.right
+			t.XReplaceN(s, p)
+
+			p.AddLeft(tmp2)
+			s.AddRight(p)
+			tmp1.isBlack = BLACK
+			s.isBlack = p.isBlack
+			p.isBlack = BLACK
+
+		}
+
+	}
+
+}
+
 // [x] -> (x) and replace (g)'s position
 func (t *RBTree[K, V]) raiseNode(x, g *Node[K, V]) {
 	x.isBlack = BLACK
@@ -351,7 +583,6 @@ func (t *RBTree[K, V]) Delete(key K) bool {
 	}
 
 	// replace x with c
-	xl := false
 	if x == t.root {
 		t.root = c
 		if c != nil {
@@ -363,7 +594,7 @@ func (t *RBTree[K, V]) Delete(key K) bool {
 	} else {
 		if x == x.parent.left {
 			x.parent.AddLeft(c)
-			xl = true
+
 		} else {
 			x.parent.AddRight(c)
 		}
@@ -371,7 +602,7 @@ func (t *RBTree[K, V]) Delete(key K) bool {
 
 	if x.isBlack {
 		if IsBlack(c) {
-			t.FixReplacedX(c, x.parent, xl)
+			t.fixDelete(c)
 		} else {
 			c.isBlack = BLACK
 		}
@@ -381,242 +612,8 @@ func (t *RBTree[K, V]) Delete(key K) bool {
 	return true
 }
 
-func (t *RBTree[K, V]) FixReplacedX(x *Node[K, V], p *Node[K, V], xl bool) {
-	if p == nil {
-		return
-	}
-	if p.isBlack {
-		if xl {
-			s := p.right
-			if IsBlack(s) {
-				t.FixBBB(p, s)
-			} else {
-				t.FixXBR(p, s)
-			}
-		} else {
-			s := p.left
-			if IsBlack(s) {
-				t.FixBBB(p, s)
-			} else {
-				t.FixRBX(p, s)
-			}
-		}
-	} else {
-		if xl {
-			t.FixXRB(p, p.right)
-		} else {
-			t.FixBRX(p, p.left)
-		}
-	}
-}
-
 func IsBlack[K constraints.Ordered, V interface{}](x *Node[K, V]) Color {
-	if x == nil {
-		return BLACK
-	}
-	return x.isBlack
-}
-
-func (t *RBTree[K, V]) FixBRX(p, s *Node[K, V]) {
-	// case 4
-	//   [p]
-	//   / \
-	// (s) (x)
-START:
-	if IsBlack(s.left) && IsBlack(s.right) {
-		//   (s)
-		//   / \
-		// (l) (r)
-		s.isBlack = RED
-		p.isBlack = BLACK
-	} else if !IsBlack(s.left) {
-		//     [p]
-		//     /
-		//   (s)
-		//   / \
-		//  [l] r
-		if p == t.root {
-			t.root = s
-			s.parent = nil
-		} else {
-			if p == p.parent.right {
-				p.parent.right = s
-			} else {
-				p.parent.left = s
-			}
-			s.parent = p.parent
-		}
-		s.isBlack = p.isBlack
-
-		p.AddLeft(s.right)
-		p.isBlack = BLACK
-		s.AddRight(s.left)
-
-	} else {
-		//   (s)
-		//   / \
-		// (l) [r]
-		sr := s.right
-		p.left = s
-		sr.parent = p
-		sr.isBlack = BLACK
-
-		s.right = sr.right
-		s.right.parent = s
-
-		sr.left = s
-		s.parent = sr
-		s.isBlack = RED
-		s = sr
-		//       [p]
-		//       /
-		//     (r)
-		//     /
-		//   [s]
-		//   /
-		// (l)
-		goto START
-	}
-}
-
-func (t *RBTree[K, V]) FixXRB(p, s *Node[K, V]) {
-	// case 4
-	//   [p]
-	//   / \
-	// (x) (s)
-START:
-	if IsBlack(s.left) && IsBlack(s.right) {
-		//   (s)
-		//   / \
-		// (l) (r)
-		s.isBlack = RED
-		p.isBlack = BLACK
-	} else if !IsBlack(s.right) {
-		//  [p]
-		//    \
-		//   (s)
-		//   / \
-		//  l  [r]
-		if p == t.root {
-			t.root = s
-			s.parent = nil
-		} else {
-			if p == p.parent.left {
-				p.parent.left = s
-			} else {
-				p.parent.right = s
-			}
-			s.parent = p.parent
-		}
-		s.isBlack = p.isBlack
-
-		p.AddRight(s.left)
-		p.isBlack = BLACK
-		s.AddLeft(p)
-
-	} else {
-		//   (s)
-		//   / \
-		// [l] (r)
-		sl := s.left
-		p.right = sl
-		sl.parent = p
-		sl.isBlack = BLACK
-
-		s.left = sl.right
-		s.left.parent = s
-
-		sl.right = s
-		s.parent = sl
-		s.isBlack = RED
-		s = sl
-		//  [p]
-		//    \
-		//   (l)
-		//     \
-		//     [s]
-		//      \
-		//      (r)
-		goto START
-	}
-
-}
-
-func (t *RBTree[K, V]) FixBBB(p, s *Node[K, V]) {
-	// case 3
-
-	//   (p)         (p)  -> set p as x
-	//   / \          \
-	// (x) (s) =>    [s]
-	//     / \
-	//   (l) (r)
-
-	//     (p)
-	//     / \
-	//   (s) (x)
-	//   / \
-	// (l) (r)
-
-	s.isBlack = RED
-	if p.parent == nil {
-		t.FixReplacedX(p, p.parent, false)
-	} else {
-		t.FixReplacedX(p, p.parent, p == p.parent.left)
-	}
-}
-
-func (t *RBTree[K, V]) FixXBR(p, s *Node[K, V]) {
-	// case 2
-	//   (p)           (s)
-	//   / \           / \
-	// (x) [s]   =>  [p] (r)
-	//     / \       / \
-	//   (l) (r)   (x) (l)
-
-	// if p == t.root {
-	// 	t.root = s
-	// 	s.parent = nil
-	// } else {
-	// 	if p == p.parent.left {
-	// 		p.parent.AddLeft(s)
-	// 	} else {
-	// 		p.parent.AddRight(s)
-	// 	}
-	// }
-	// s.isBlack = BLACK
-	t.XReplaceN(s, p)
-
-	p.AddRight(s.left)
-	s.AddLeft(p)
-	p.isBlack = RED
-	t.FixXRB(p, p.right)
-}
-
-func (t *RBTree[K, V]) FixRBX(p, s *Node[K, V]) {
-	// case 2
-	//     (p)            (s)
-	//     / \            / \
-	//   [s] (x)   =>   (l) [p]
-	//   / \                / \
-	// (l) (r)   	  	  (r) (x)
-
-	// if p == t.root {
-	// 	t.root = s
-	// 	s.parent = nil
-	// } else {
-	// 	if p == p.parent.right {
-	// 		p.parent.AddRight(s)
-	// 	} else {
-	// 		p.parent.AddLeft(s)
-	// 	}
-	// }
-	// s.isBlack = BLACK
-	t.XReplaceN(s, p)
-
-	p.AddLeft(s.right)
-	s.AddRight(p)
-	p.isBlack = RED
-	t.FixBRX(p, p.left)
+	return x == nil || x.isBlack
 }
 
 func (t *RBTree[K, V]) XReplaceN(x, n *Node[K, V]) {
