@@ -108,13 +108,24 @@ func MakeMidSearch(node *IntNode, arr []int) []int {
 func TestFixLL(t *testing.T) {
 	// LL:
 
+	tree := &IntRBTree{}
+
+	// Root(7)
+	//     /
+	//   [6]
+
+	tree.Insert(7, 7)
+	tree.Insert(6, 6)
+
+	CheckTree(
+		t, tree,
+		[]int{6, 7},
+		[]Color{RED, BLACK},
+	)
+
 	// Root(6)
 	//     / \
 	//   [5] [7]
-
-	tree := &IntRBTree{}
-	tree.Insert(7, 7)
-	tree.Insert(6, 6)
 	tree.Insert(5, 5)
 
 	CheckTree(
@@ -196,6 +207,12 @@ func TestFixRR(t *testing.T) {
 
 	tree.Insert(0, 0)
 	tree.Insert(1, 0)
+	CheckTree(
+		t, tree,
+		[]int{0, 1},
+		[]Color{BLACK, RED},
+	)
+
 	tree.Insert(2, 0)
 	CheckTree(
 		t, tree,
@@ -321,6 +338,8 @@ func TestDelete(t *testing.T) {
 	tree.Insert(6, 0)
 	tree.Insert(7, 0)
 
+	LogLegal(t, tree)
+
 	tree.Delete(7)
 	CheckTree(
 		t, tree,
@@ -348,5 +367,59 @@ func TestDelete(t *testing.T) {
 		[]int{0, 2, 3, 4},
 		[]Color{BLACK, RED, BLACK, BLACK},
 	)
+
+}
+
+func LogLegal(t testing.TB, tree *IntRBTree) {
+	err := IsLegalTree(tree)
+	if err != nil {
+		t.Fatalf("Tree illegal: %s", err)
+	}
+}
+
+func IsLegalTree(tree *IntRBTree) error {
+	if !IsBlack(tree.root) {
+		return fmt.Errorf("Root is not BLACK")
+	}
+
+	_, err := BlackPath(tree.root)
+	return err
+
+}
+
+func BlackPath(node *IntNode) (path int, err error) {
+	if node == nil {
+		path = 1
+		return
+	}
+	if node.isBlack {
+		path = 1
+	} else {
+		if !IsBlack(node.left) {
+			err = fmt.Errorf("Node[%d] & Left[%d] is RED", node.key, node.left.key)
+			return path, err
+		}
+		if !IsBlack(node.right) {
+			err = fmt.Errorf("Node[%d] & Right[%d] is RED", node.key, node.right.key)
+			return path, err
+		}
+	}
+	left, err := BlackPath(node.left)
+	if err != nil {
+		return
+	}
+	right, err := BlackPath(node.right)
+	if err != nil {
+		return
+	}
+
+	if left != right {
+		err = fmt.Errorf("Node %d imblanced: %d != %d", node.key, left, right)
+		return
+	}
+
+	path = path + left
+
+	return
 
 }
