@@ -2,11 +2,14 @@ package sharedmemory
 
 import (
 	"os"
+	"runtime"
 	"testing"
+	"time"
 
 	"bitbucket.org/avd/go-ipc/mmf"
 	"bitbucket.org/avd/go-ipc/shm"
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 )
 
 const SHM_NAME string = "shmtest"
@@ -215,4 +218,64 @@ func TestReadString(t *testing.T) {
 
 func TestDestroy(t *testing.T) {
 	shm.DestroyMemoryObject(SHM_NAME)
+}
+
+func TestRuntime(t *testing.T) {
+	t.Logf("Runtime: %s", runtime.GOOS)
+	t.Logf("uid: %d", unix.Geteuid())
+}
+
+const RWNAME = "RWTest"
+
+func TestRW(t *testing.T) {
+	memw := createMemoryObject(RWNAME, 4096)
+	defer func() {
+		memw.Close()
+		shm.DestroyMemoryObject(RWNAME)
+	}()
+	memr := initMemoryObject(RWNAME)
+	defer memr.Close()
+
+	rwRegion, err := mmf.NewMemoryRegion(memw, mmf.MEM_READWRITE, 0, 4096)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rwRegion.Close()
+
+	roRegion, err := mmf.NewMemoryRegion(memr, mmf.MEM_READ_ONLY, 0, 4096)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer roRegion.Close()
+
+	t.Logf("Origin  r[0] = %d", roRegion.Data()[0])
+	rwRegion.Data()[0] = 1
+	rwRegion.Flush(true)
+	t.Logf("Flushed r[0] = %d", roRegion.Data()[0])
+	rwRegion.Data()[0] = 2
+	t.Logf("Noflush r[0] = %d", roRegion.Data()[0])
+
+}
+
+func TestHold(t *testing.T) {
+	memw := createMemoryObject(RWNAME, 4096)
+	defer func() {
+		memw.Close()
+		shm.DestroyMemoryObject(RWNAME)
+	}()
+
+	rwRegion, err := mmf.NewMemoryRegion(memw, mmf.MEM_READWRITE, 0, 4096)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer rwRegion.Close()
+	expireAt := time.Now().Unix() + 50
+	var i uint8 = 0
+	for time.Now().Unix() < expireAt {
+		time.Sleep(5 * time.Second)
+		rwRegion.Data()[0] = i
+		t.Logf("i: %d", i)
+		i++
+	}
 }

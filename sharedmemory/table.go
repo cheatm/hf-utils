@@ -61,6 +61,23 @@ func (table *UnsafeSharedMemoryTable[T]) Read(offset int, size int) (data []T, e
 	return
 }
 
+func (table *UnsafeSharedMemoryTable[T]) ReadOnce(offset int, size int) (data []T, err error) {
+	locEnd := (int64(offset) + int64(size)) * int64(table.elemSize)
+	if locEnd > table.smo.Size() {
+		err = fmt.Errorf("size execeed memory total size")
+		return
+	}
+	var roRegion *mmf.MemoryRegion
+	loc := int64(offset) * int64(table.elemSize)
+	chunkSize := size * table.elemSize
+	roRegion, err = mmf.NewMemoryRegion(table.smo, mmf.MEM_READ_ONLY, loc, chunkSize)
+	if err != nil {
+		return
+	}
+	data = UnsafeBytesToSlice[T](roRegion.Data(), table.elemSize)
+	return
+}
+
 func (table *UnsafeSharedMemoryTable[T]) Write(offset int, data []T) (loc int64, err error) {
 	length := len(data)
 	totalSize := table.smo.Size()
@@ -97,6 +114,20 @@ func (table *UnsafeSharedMemoryTable[T]) Write(offset int, data []T) (loc int64,
 	return
 }
 
+func (table UnsafeSharedMemoryTable[T]) Attach(data *[]T, offset int) error {
+	chunkSize := len(*data) * table.elemSize
+	loc := int64(offset) * int64(table.elemSize)
+	if loc+int64(chunkSize) > table.smo.Size() {
+		return fmt.Errorf("required address exceeded shm region")
+	}
+	rwRegion, err := mmf.NewMemoryRegion(table.smo, mmf.MEM_READWRITE, loc, chunkSize)
+	if err != nil {
+		return err
+	}
+	UnsafeAttachSlice(rwRegion.Data(), data, table.elemSize)
+	return nil
+}
+
 func UnsafeSliceToBytes[T any](data []T, elemSize int) []byte {
 	up := (*reflect.SliceHeader)(unsafe.Pointer(&data))
 	var result []byte
@@ -116,4 +147,12 @@ func UnsafeBytesToSlice[T any](data []byte, elemSize int) []T {
 	sh.Len = sh.Cap
 	sh.Data = up.Data
 	return result
+}
+
+func UnsafeAttachSlice[T any](data []byte, elems *[]T, elemSize int) {
+	sh := (*reflect.SliceHeader)(unsafe.Pointer(elems))
+	sh.Data = (*reflect.SliceHeader)(unsafe.Pointer(&data)).Data
+	if sh.Len > len(data)/elemSize {
+		sh.Len = len(data) / elemSize
+	}
 }
