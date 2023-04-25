@@ -1,4 +1,49 @@
 
+# SHM
+
+测试结果基于go，使用了一个第三方库`bitbucket.org/avd/go-ipc`执行共享内存的访问。
+
+测试: 结构体在共享内存下的读写效率。测试结构体是买卖各100档包括价格和挂单量的深度FullDepth，Size=3216B。
+
+```go
+type Level struct {
+	Price  int64
+	Volume int64
+}
+
+type FullDepth struct {
+	Price     int64
+	Timestamp int64
+	Asks      [100]Level
+	Bids      [100]Level
+}
+```
+
+对shm的读写使用chunk的方式，即一次对数个结构体进行读写。测试的SHM size = `256 * 3216B`。
+在不同的chunk和系统环境下的RW效率(每结构体平均)分别为：
+
+`write`
+
+|chunk|mac(darwin)/3.10GHz|linux/2.00GHz|
+|:-:|:-:|:-:|
+|32|2762 ns/op|2049 ns/op|
+|64|1561 ns/op|1742 ns/op|
+|128|1332 ns/op|1704 ns/op|
+
+`read`
+
+|chunk|mac(darwin)/3.10GHz|linux/2.00GHz|
+|:-:|:-:|:-:|
+|32|1810 ns/op|3296 ns/op|
+|64|1704 ns/op|2641 ns/op|
+|128|1332 ns/op|2490 ns/op|
+
+取平均算2000ns/op，如果是对100ms每个的depth，即36000/h -> 72(ms)/h。
+
+即在go环境粗略估算下用shm的方式读1h数据差不多是72ms。
+
+
+## Benchmark LogsLogs
 
 `mac benchmark write`
 
