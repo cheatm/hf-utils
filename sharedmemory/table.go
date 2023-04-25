@@ -27,6 +27,10 @@ func NewSharedMemoryTable[T any](obj shm.SharedMemoryObject) *UnsafeSharedMemory
 	}
 }
 
+func (table *UnsafeSharedMemoryTable[T]) Cap() int {
+	return int(table.smo.Size() / int64(table.elemSize))
+}
+
 func (table *UnsafeSharedMemoryTable[T]) Read(offset int, size int) (data []T, err error) {
 	locEnd := (int64(offset) + int64(size)) * int64(table.elemSize)
 	if locEnd > table.smo.Size() {
