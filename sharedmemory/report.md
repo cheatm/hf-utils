@@ -3,7 +3,7 @@
 
 测试结果基于go，使用了一个第三方库`bitbucket.org/avd/go-ipc`执行共享内存的访问。
 
-测试: 结构体在共享内存下的读写效率。测试结构体是买卖各100档包括价格和挂单量的深度FullDepth，Size=3216B。
+测试: 结构体在共享内存下的读写效率。测试结构体是买卖各100档包括价格和挂单量的深度FullDepth，Size=`3216B`。
 
 ```go
 type Level struct {
@@ -42,8 +42,9 @@ type FullDepth struct {
 
 即在go环境粗略估算下用shm的方式读1h数据差不多是72ms。
 
+下一步可以根据实际需求看怎么设计。
 
-## Benchmark LogsLogs
+## Benchmark Logs
 
 `mac benchmark write`
 
