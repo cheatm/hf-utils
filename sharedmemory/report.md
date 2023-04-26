@@ -42,7 +42,7 @@ type FullDepth struct {
 
 即在go环境粗略估算下用shm的方式读1h数据差不多是72ms。
 
-下一步可以根据实际需求看怎么设计。
+**下一步可以根据实际需求看怎么设计。**
 
 ## Benchmark Logs
 
