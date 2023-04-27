@@ -3,6 +3,8 @@ package sharedmemory
 import (
 	"os"
 	"runtime"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -47,10 +49,6 @@ func initTestMem() {
 	if mo == nil {
 		mo = initMemoryObject(SHM_NAME)
 	}
-}
-
-func TestSample(t *testing.T) {
-	RWSample()
 }
 
 func TestObject(t *testing.T) {
@@ -278,4 +276,54 @@ func TestHold(t *testing.T) {
 		t.Logf("i: %d", i)
 		i++
 	}
+}
+
+func TestAtomic(t *testing.T) {
+	createTestMem()
+	defer mo.Destroy()
+
+	gs := 4
+	addCount := 1024
+	errs := make([]error, gs)
+	wg := sync.WaitGroup{}
+	skipCount := atomic.Int64{}
+	for i := 0; i < gs; i++ {
+		wg.Add(1)
+		go func(pos int) {
+			defer wg.Done()
+			rwRegion, err := mmf.NewMemoryRegion(mo, mmf.MEM_READWRITE, 0, int(mo.Size()))
+			if err != nil {
+				errs[pos] = err
+				return
+			}
+			defer rwRegion.Close()
+			var elems []int64 = []int64{0}
+			data := rwRegion.Data()
+			UnsafeAttachSlice(data, &elems, 8)
+			var before, after int64
+			before = atomic.LoadInt64(&elems[0])
+			for j := 0; j < addCount; j++ {
+				after = atomic.AddInt64(&elems[0], 1)
+				if after-before > 1+int64(j) {
+					skipCount.Add(1)
+					before = after - 1 - int64(j)
+				}
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("Error[%d]: %s", i, err)
+		}
+	}
+
+	rwRegion, err := mmf.NewMemoryRegion(mo, mmf.MEM_READWRITE, 0, int(mo.Size()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("TBytes: %v", rwRegion.Data()[:8])
+	t.Logf("Skipped: %d", skipCount.Load())
 }
