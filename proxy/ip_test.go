@@ -1,14 +1,21 @@
 package proxy
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"os"
 	"testing"
 	"time"
 )
+
+var netIndex = flag.Int("index", 0, "")
+var netName = flag.String("name", "eth0", "")
+
+func TestFlags(t *testing.T) {
+	t.Logf("Flags: %s:%d", *netName, *netIndex)
+}
 
 func TestLocalIP(t *testing.T) {
 	interfaces, err := net.Interfaces()
@@ -81,11 +88,8 @@ func TestType(t *testing.T) {
 const HOST string = "testnet.binancefuture.com"
 
 func TestClient(t *testing.T) {
-	name := os.Getenv("NET_NAME")
-	if len(name) == 0 {
-		name = "eth0"
-	}
-	addr, err := getAddr(name, 0)
+
+	addr, err := getAddr(*netName, *netIndex)
 	// addr, err := net.ResolveIPAddr("ip", "172.20.104.196")
 	if err != nil {
 		t.Fatal(err)
