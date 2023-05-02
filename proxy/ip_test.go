@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 )
@@ -80,7 +81,11 @@ func TestType(t *testing.T) {
 const HOST string = "testnet.binancefuture.com"
 
 func TestClient(t *testing.T) {
-	addr, err := getAddr("eth0", 0)
+	name := os.Getenv("NET_NAME")
+	if len(name) == 0 {
+		name = "eth0"
+	}
+	addr, err := getAddr(name, 0)
 	// addr, err := net.ResolveIPAddr("ip", "172.20.104.196")
 	if err != nil {
 		t.Fatal(err)
