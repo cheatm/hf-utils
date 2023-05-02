@@ -177,7 +177,51 @@ func TestDepthRead(t *testing.T) {
 }
 
 type DepthTestParam struct {
-	Size int
+	ChunkSize int
+	MemCap    int
+}
+
+func (p *DepthTestParam) createDepthMem() {
+	if dm == nil {
+		shm.DestroyMemoryObject(DEPTH_MEM_NAME)
+		dm = createMemoryObject(DEPTH_MEM_NAME, int64(p.MemCap)*(int64(FullDepthSize())))
+	}
+}
+
+func (p *DepthTestParam) TestWrite(t testing.TB) {
+	p.createDepthMem()
+	table := NewSharedMemoryTable[FullDepth](dm)
+	table.Chunk = p.ChunkSize
+	cap := table.smo.Size() / int64(table.elemSize)
+	dg := DepthGenerator{
+		Price:  10000,
+		Range:  11,
+		Offset: 5,
+	}
+	depths := make([]FullDepth, p.ChunkSize)
+	for offset := 0; offset+p.ChunkSize <= int(cap); offset = offset + p.ChunkSize {
+		for i := 0; i < p.ChunkSize; i++ {
+			dg.Next(&depths[i])
+		}
+		_, err := table.Write(offset, depths)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func SizeOfShm(mem shm.SharedMemoryObject) string {
+	size := mem.Size()
+	if size < (1 << 10) {
+		return fmt.Sprintf("%dB", size)
+	} else if size < (1 << 20) {
+		return fmt.Sprintf("%dKB", size>>10)
+	} else if size < (1 << 30) {
+		return fmt.Sprintf("%dMB", size>>20)
+	} else {
+		return fmt.Sprintf("%dGB", size>>30)
+	}
+
 }
 
 func (p *DepthTestParam) BenchmarkWrite(b *testing.B) {
@@ -188,30 +232,30 @@ func (p *DepthTestParam) BenchmarkWrite(b *testing.B) {
 	}()
 
 	table := NewSharedMemoryTable[FullDepth](dm)
-	table.Chunk = p.Size
+	table.Chunk = p.ChunkSize
 	dg := DepthGenerator{
 		Price:  10000,
 		Range:  11,
 		Offset: 5,
 	}
-	depths := make([]FullDepth, p.Size)
+	depths := make([]FullDepth, p.ChunkSize)
 	wCount := 0
 	for i := 0; i < b.N; i++ {
-		if i != 0 && i%p.Size == 0 {
+		if i != 0 && i%p.ChunkSize == 0 {
 			_, err := table.Write(0, depths)
 			if err != nil {
 				panic(err)
 			}
 			wCount++
 		}
-		dg.Next(&depths[i%p.Size])
+		dg.Next(&depths[i%p.ChunkSize])
 	}
 }
 
 func (p *DepthTestParam) BenchmarkCopy(b *testing.B) {
 	chunkSize := FullDepthSize()
 	target := make([]byte, chunkSize)
-	source := make([]byte, chunkSize*p.Size)
+	source := make([]byte, chunkSize*p.ChunkSize)
 	for i := 0; i < len(source); i++ {
 		source[i] = uint8(rand.Intn(256))
 	}
@@ -233,40 +277,45 @@ func (p *DepthTestParam) BenchmarkRead(b *testing.B) {
 	}()
 
 	table := NewSharedMemoryTable[FullDepth](dm)
-	table.Chunk = p.Size
+	table.Chunk = p.ChunkSize
 	offset := 0
 	cap := table.Cap()
-	L := 0
+	maxt := int64(-1)
 	for i := 0; i < b.N; i++ {
-		if i%p.Size == 0 {
-			if offset+p.Size > cap {
+		if i%p.ChunkSize == 0 {
+			if offset+p.ChunkSize > cap {
 				offset = 0
 			}
-			data, err := table.Read(offset, p.Size)
+			data, err := table.Read(offset, p.ChunkSize)
 			if err != nil {
 				panic(err)
 			}
-			L = L + len(data)
-			offset = offset + p.Size
+			offset = offset + p.ChunkSize
+			if data[len(data)-1].Timestamp > maxt {
+				maxt = data[len(data)-1].Timestamp
+			}
 		}
 	}
-	// b.Logf("N: %d, L: %d", b.N, L)
 }
 
 func BenchmarkCopy(b *testing.B) {
 	for _, chunk := range []int{32, 64, 128} {
 		b.Run(
 			fmt.Sprintf("Chunk=%d", chunk),
-			(&DepthTestParam{Size: chunk}).BenchmarkCopy,
+			(&DepthTestParam{ChunkSize: chunk}).BenchmarkCopy,
 		)
 	}
 }
 
 func BenchmarkDepthRead(b *testing.B) {
+	p := &DepthTestParam{ChunkSize: 128, MemCap: 1 << 17}
+	p.TestWrite(b)
+	defer dm.Destroy()
+	b.Logf("SHM size = %s", SizeOfShm(dm))
 	for _, chunk := range []int{32, 64, 128} {
 		b.Run(
 			fmt.Sprintf("Chunk=%d", chunk),
-			(&DepthTestParam{Size: chunk}).BenchmarkRead,
+			(&DepthTestParam{ChunkSize: chunk}).BenchmarkRead,
 		)
 	}
 }
@@ -275,7 +324,7 @@ func BenchmarkDepthWrite(b *testing.B) {
 	for _, chunk := range []int{32, 64, 128} {
 		b.Run(
 			fmt.Sprintf("Chunk=%d", chunk),
-			(&DepthTestParam{Size: chunk}).BenchmarkWrite,
+			(&DepthTestParam{ChunkSize: chunk}).BenchmarkWrite,
 		)
 	}
 
