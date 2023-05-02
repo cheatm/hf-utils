@@ -63,16 +63,11 @@ func TestResolve(t *testing.T) {
 		panic(err)
 	}
 	t.Logf("%s: %s", addr.Network(), addr.String())
-	hint, err := getAddr("eth0", 0)
+	hint, err := getAddr("eth0", 1)
 	if err != nil {
 		panic(err)
 	}
 	t.Logf("%s: %s", hint.Network(), hint.String())
-	ipa, err := net.ResolveIPAddr("ip", "172.20.104.196")
-	if err != nil {
-		panic(err)
-	}
-	t.Logf("%s: %s", ipa.Network(), ipa.IP)
 
 }
 
@@ -83,6 +78,12 @@ func TestType(t *testing.T) {
 	}
 	ipa := addr.(*net.IPNet)
 	t.Logf("IP: %s", ipa.IP)
+	dialer := net.Dialer{
+		LocalAddr: &net.TCPAddr{IP: ipa.IP},
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	t.Logf("LoacalAddr: %s", dialer.LocalAddr)
 }
 
 const HOST string = "testnet.binancefuture.com"
@@ -101,6 +102,7 @@ func TestClient(t *testing.T) {
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
 	}
+	t.Logf("LoacalAddr: %s", dialer.LocalAddr)
 	transport := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		Dial:                  dialer.Dial,
