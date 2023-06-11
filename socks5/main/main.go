@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"os"
 	"sync/atomic"
 
 	"github.com/armon/go-socks5"
@@ -11,7 +12,24 @@ import (
 
 func main() {
 	// Create a SOCKS5 server
+
+	if len(os.Args) == 2 {
+		switch os.Args[1] {
+		case "gin":
+			RunGin()
+		case "proxy":
+			RunProxy()
+		}
+
+		return
+	}
 	go RunGin()
+	RunProxy()
+}
+
+var running atomic.Bool
+
+func RunProxy() {
 	conf := &socks5.Config{}
 	server, err := socks5.New(conf)
 	if err != nil {
@@ -23,8 +41,6 @@ func main() {
 		panic(err)
 	}
 }
-
-var running atomic.Bool
 
 func RunGin() {
 	if !running.CompareAndSwap(false, true) {
