@@ -46,6 +46,7 @@ func RunGin() {
 	if !running.CompareAndSwap(false, true) {
 		return
 	}
+
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -53,13 +54,27 @@ func RunGin() {
 		c.String(200, "pong")
 	})
 	r.POST("/send", func(ctx *gin.Context) {
+		host := ctx.ClientIP()
 		data, err := io.ReadAll(ctx.Request.Body)
 		if err != nil {
 			fmt.Printf("err: %s\n", err)
 			return
 		}
+		hostBytes := []byte(host)
+		headSize := len(hostBytes)
 
-		ctx.Writer.Write(data)
+		response := make([]byte, 1+headSize+len(data))
+		// data = append([]byte(host), data...)
+		response[0] = uint8(headSize)
+		for i := 0; i < headSize; i++ {
+			response[1+i] = hostBytes[i]
+		}
+		for i := 0; i < len(data); i++ {
+			response[1+headSize+i] = data[i]
+		}
+		// response[1:1+headSize] = hostBytes[:]
+
+		ctx.Writer.Write(response)
 
 	})
 	r.Run("0.0.0.0:8080")
