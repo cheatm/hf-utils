@@ -99,7 +99,7 @@ func UnsetProxy() {
 
 func RunRedis() {
 	UnsetProxy()
-	pool, err := socks5t.NewRedisPool("redis://172.16.20.81:6379", 20, 20)
+	pool, err := socks5t.NewRedisPool("redis://127.0.0.1:6379", 20, 20)
 	if err != nil {
 		panic(err)
 	}
