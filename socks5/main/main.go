@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	socks5t "hf-utils/socks5"
 	"io"
+	"net/http"
 	"os"
 	"sync/atomic"
 
@@ -86,15 +88,30 @@ func RunGin() {
 
 }
 
+func UnsetProxy() {
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("http_proxy")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("https_proxy")
+	os.Unsetenv("ALL_PROXY")
+	os.Unsetenv("all_proxy")
+}
+
 func RunRedis() {
+	UnsetProxy()
 	pool, err := socks5t.NewRedisPool("redis://172.16.20.81:6379", 20, 20)
 	if err != nil {
 		panic(err)
 	}
 	streamer := socks5t.NewRedisStreamer(pool, socks5t.DefaultSendChan)
 	streamer.SetHandler(func(m *redis.Message) error {
+		data, err := doPost("http://172.16.20.91:8080/send", 4096)
+		if err != nil {
+			data = []byte(err.Error())
+		}
+		// data := m.Data
 
-		num, err := streamer.Pub(socks5t.DefaultRecvChan, m.Data)
+		num, err := streamer.Pub(socks5t.DefaultRecvChan, data)
 		if err != nil {
 			return err
 		}
@@ -105,4 +122,18 @@ func RunRedis() {
 	})
 	streamer.Run(context.TODO())
 
+}
+
+func doPost(url string, payloadSize int) (result []byte, err error) {
+	data := make([]byte, payloadSize)
+	data[0] = 1
+	data[payloadSize-1] = 1
+	resp, err := http.Post(url, "plain/text", bytes.NewBuffer(data))
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	result, err = io.ReadAll(resp.Body)
+	return
 }

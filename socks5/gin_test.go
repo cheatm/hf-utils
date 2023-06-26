@@ -115,6 +115,7 @@ func TestPost(t *testing.T) {
 }
 
 func TestPostRedis(t *testing.T) {
+	UnsetProxy()
 	pool, err := NewRedisPool("redis://172.16.20.81:6379", 20, 20)
 	if err != nil {
 		t.Fatal(err)
