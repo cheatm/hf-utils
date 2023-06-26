@@ -15,12 +15,12 @@ import (
 
 func init() {
 	os.Setenv("GIN_MODE", "release")
-	os.Setenv("HTTP_PROXY", "socks5://127.0.0.1:1080")
-	os.Setenv("http_proxy", "socks5://127.0.0.1:1080")
-	os.Setenv("HTTPS_PROXY", "socks5://127.0.0.1:1080")
-	os.Setenv("https_proxy", "socks5://127.0.0.1:1080")
-	os.Setenv("ALL_PROXY", "socks5://127.0.0.1:1080")
-	os.Setenv("all_proxy", "socks5://127.0.0.1:1080")
+	// os.Setenv("HTTP_PROXY", "socks5://127.0.0.1:1080")
+	// os.Setenv("http_proxy", "socks5://127.0.0.1:1080")
+	// os.Setenv("HTTPS_PROXY", "socks5://127.0.0.1:1080")
+	// os.Setenv("https_proxy", "socks5://127.0.0.1:1080")
+	// os.Setenv("ALL_PROXY", "socks5://127.0.0.1:1080")
+	// os.Setenv("all_proxy", "socks5://127.0.0.1:1080")
 }
 
 var running atomic.Bool
