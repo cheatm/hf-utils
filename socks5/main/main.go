@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	socks5t "hf-utils/socks5"
 	"io"
 	"os"
 	"sync/atomic"
 
 	"github.com/armon/go-socks5"
 	"github.com/gin-gonic/gin"
+	"github.com/gomodule/redigo/redis"
 )
 
 func main() {
@@ -19,6 +22,8 @@ func main() {
 			RunGin()
 		case "proxy":
 			RunProxy()
+		case "redis":
+			RunRedis()
 		}
 
 		return
@@ -78,5 +83,26 @@ func RunGin() {
 
 	})
 	r.Run("0.0.0.0:8080")
+
+}
+
+func RunRedis() {
+	pool, err := socks5t.NewRedisPool("redis://172.16.20.81:6379", 20, 20)
+	if err != nil {
+		panic(err)
+	}
+	streamer := socks5t.NewRedisStreamer(pool, socks5t.DefaultSendChan)
+	streamer.SetHandler(func(m *redis.Message) error {
+
+		num, err := streamer.Pub(socks5t.DefaultRecvChan, m.Data)
+		if err != nil {
+			return err
+		}
+		if num == 0 {
+			return fmt.Errorf("no reciever")
+		}
+		return nil
+	})
+	streamer.Run(context.TODO())
 
 }
