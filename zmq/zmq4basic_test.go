@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -104,10 +105,11 @@ func TestEchoSender(t *testing.T) {
 	defer subSocket.Close()
 
 	subSocket.SetSubscribe("echo")
-	subSocket.Connect("tcp://127.0.0.1:5556")
+	// subSocket.Connect("tcp://126.0.0.1:5556")
+	subSocket.Connect("tcp://172.16.20.81:5556")
 	time.Sleep(time.Millisecond * 200)
 	reply := make(chan string)
-	var count int = 5
+	var count int = 10
 	ctx, cancel := context.WithCancel(context.TODO())
 
 	go func(count int) {
@@ -151,4 +153,129 @@ func TestEchoSender(t *testing.T) {
 	case <-time.After(time.Second * 5):
 		t.Fatalf("timeout")
 	}
+}
+
+func subscriber(zctx *zmq.Context, ttlCh chan int64, host string, subName string, clients int64, finished *atomic.Int64) (err error) {
+	subSocket, err := zctx.NewSocket(zmq.SUB)
+	if err != nil {
+		fmt.Print(err)
+		return
+	}
+	defer subSocket.Close()
+
+	subSocket.SetSubscribe(subName)
+	subSocket.Connect(host)
+
+	var msg []string
+
+	for {
+		msg, err = subSocket.RecvMessage(0)
+		if err != nil {
+			fmt.Print(err)
+			return
+		}
+		now := time.Now().UnixNano()
+		if msg[1] == "stop" {
+			break
+		}
+
+		sendTime, err := strconv.ParseInt(msg[1], 10, 64)
+		if err != nil {
+			fmt.Printf("parse \"%s\" err: %s\n", msg[1], err)
+		}
+
+		ttlCh <- (now - sendTime)
+	}
+
+	if finished.Add(1) == clients {
+		close(ttlCh)
+	}
+
+	return
+}
+
+func TestEchoMultiClient(t *testing.T) {
+	chName := "echo"
+	zctx, _ := zmq.NewContext()
+	pubSocket, _ := zctx.NewSocket(zmq.PUB)
+	defer zctx.Term()
+	defer pubSocket.Close()
+	pubSocket.Bind("tcp://*:5555")
+	subAddrs := []string{
+		"tcp://172.16.20.81:5556",
+		"tcp://172.16.20.81:5557",
+		"tcp://172.16.20.81:5558",
+		"tcp://172.16.20.81:5559",
+	}
+	finished := atomic.Int64{}
+
+	msgCount := 100
+
+	ttlCh := make(chan int64, 100)
+	totalTTL := int64(0)
+	totalCount := int64(0)
+
+	for _, addr := range subAddrs {
+		go subscriber(zctx, ttlCh, addr, chName, int64(len(subAddrs)), &finished)
+	}
+
+	// Publish
+	go func() {
+		time.Sleep(time.Second)
+		for i := 0; i < msgCount; i++ {
+			sendTs := time.Now().UnixNano()
+			pubSocket.SendMessage(chName, sendTs)
+			time.Sleep(time.Millisecond * 2)
+		}
+		pubSocket.SendMessage(chName, "stop")
+	}()
+
+	expireAt := time.Now().Add(time.Second * 10)
+	timer := time.NewTimer(time.Until(expireAt))
+	do := true
+	for do {
+
+		select {
+		case ttl, ok := <-ttlCh:
+			if ok {
+				totalTTL += ttl
+				totalCount++
+			} else {
+				do = false
+			}
+		case <-timer.C:
+			do = false
+		}
+	}
+
+	avgTTL := totalTTL / totalCount
+
+	t.Logf("msg: %d", totalCount)
+	t.Logf("avg: %d", avgTTL)
+
+}
+
+func TestChanClose(t *testing.T) {
+	ch := make(chan int, 10)
+
+	ch <- 1
+	t.Logf("%d", <-ch)
+	ch <- 2
+	close(ch)
+	var ok bool = true
+	var d int
+	for ok {
+		select {
+		case d, ok = <-ch:
+			if ok {
+				t.Logf("ok -> %d", d)
+			} else {
+				t.Logf("not ok")
+			}
+		case <-time.After(time.Second):
+			t.Logf("timeout")
+			ok = false
+		}
+	}
+
 }
