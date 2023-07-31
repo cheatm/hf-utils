@@ -3,9 +3,91 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	zmq "github.com/pebbe/zmq4"
 )
+
+func RunPublishOne(pubAddr, op, topic, msg string) (err error) {
+	context, err := zmq.NewContext()
+	if err != nil {
+		return fmt.Errorf("[new context] %w", err)
+	}
+	defer context.Term()
+	pubSocket, err := context.NewSocket(zmq.PUB)
+	if err != nil {
+		return fmt.Errorf("[new pubsocket] %w", err)
+	}
+	defer pubSocket.Close()
+
+	switch op {
+	case "connect":
+		err = pubSocket.Connect(pubAddr)
+		if err != nil {
+			err = fmt.Errorf("connect failed: %w", err)
+			return
+		}
+	default:
+		err = pubSocket.Bind(pubAddr)
+		if err != nil {
+			err = fmt.Errorf("bind failed: %s", err)
+			return
+		}
+		fmt.Printf("bind %s ok\n", pubAddr)
+
+	}
+
+	for i := 0; i < 10; i++ {
+
+		total, err := pubSocket.SendMessage(topic, msg)
+		if err != nil {
+			return fmt.Errorf("send failed: %s", err)
+		}
+		fmt.Printf("send %d\n", total)
+		time.Sleep(time.Second)
+	}
+
+	return
+}
+
+func RunSubscribe(subAddr, op, topic string) (err error) {
+	context, err := zmq.NewContext()
+	if err != nil {
+		return fmt.Errorf("[new context] %w", err)
+	}
+	defer context.Term()
+	subSocket, err := context.NewSocket(zmq.SUB)
+	if err != nil {
+		return fmt.Errorf("[new pubsocket] %w", err)
+	}
+	defer subSocket.Close()
+	subSocket.SetSubscribe(topic)
+	switch op {
+	case "bind":
+		err = subSocket.Bind(subAddr)
+		if err != nil {
+			err = fmt.Errorf("bind failed: %s", err)
+			return
+		}
+	default:
+		err = subSocket.Connect(subAddr)
+		if err != nil {
+			err = fmt.Errorf("connect failed: %w", err)
+			return
+		}
+	}
+
+	for {
+		msgs, err := subSocket.RecvMessage(0)
+		if err != nil {
+			fmt.Printf("recv failed: %s\n", err)
+			continue
+		}
+		fmt.Printf("[msgs] %v\n", msgs)
+
+	}
+
+}
 
 func RunPubSubEcho(pubAddr, subAddr string) (err error) {
 	context, err := zmq.NewContext()
@@ -57,6 +139,7 @@ func RunPubSubEcho(pubAddr, subAddr string) (err error) {
 }
 
 func main() {
+	var err error
 	args := os.Args
 	if len(args) < 2 {
 		args = []string{"", "echo", "tcp://*:5556", "tcp://127.0.0.1:5555"}
@@ -72,6 +155,21 @@ func main() {
 		if len(args) > 3 {
 			subAddr = args[3]
 		}
-		RunPubSubEcho(pubAddr, subAddr)
+		err = RunPubSubEcho(pubAddr, subAddr)
+	case "pub":
+		if len(args) < 6 {
+			err = fmt.Errorf("not enough arguments, require 6")
+		} else {
+			err = RunPublishOne(args[2], args[3], args[4], args[5])
+		}
+	case "sub":
+		if len(args) < 5 {
+			err = fmt.Errorf("not enough arguments, require 5")
+		} else {
+			err = RunSubscribe(args[2], args[3], args[4])
+		}
+	}
+	if err != nil {
+		panic(err)
 	}
 }
