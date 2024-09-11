@@ -2,12 +2,13 @@ package memctrl
 
 import (
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"testing"
 )
 
 type IQueue interface {
-	Push()
+	Push(int64)
 	Pop() int64
 }
 
@@ -36,16 +37,43 @@ func (q *qTester) BenchmarkParallel(b *testing.B) {
 	b.Logf("results: %v", results)
 }
 
-func (q *qTester) ParallelLoop(b *testing.PB) int64 {
+type PB struct {
+	N int64
+	n int64
+}
+
+func (pb *PB) Next() bool {
+	return atomic.AddInt64(&pb.n, 1) <= pb.N
+}
+
+func (q *qTester) BenchmarkGo(b *testing.B) {
+	results := make([]int64, int(q.p))
+	wg := sync.WaitGroup{}
+	pb := PB{N: int64(b.N), n: 0}
+	for i := 0; i < q.p; i++ {
+		wg.Add(1)
+		go func(c int) {
+			results[c] = q.ParallelLoop(&pb)
+			wg.Done()
+		}(i)
+	}
+
+	wg.Wait()
+	b.Logf("results: %v", results)
+}
+
+func (q *qTester) ParallelLoop(b interface{ Next() bool }) int64 {
 	var (
 		temp   int64
 		result int64
 		_b     int
 	)
 	w := true
+	var i int64 = 0
 	for b.Next() {
 		if w {
-			q.q.Push()
+			q.q.Push(i)
+			i++
 		} else {
 			newTemp := q.q.Pop()
 			result += newTemp - temp
@@ -61,9 +89,22 @@ func (q *qTester) ParallelLoop(b *testing.PB) int64 {
 
 func BenchmarkPointer(b *testing.B) {
 	var q IQueue = &Pointer{size: 1024}
+	qt := &qTester{q: q, p: 1, batch: 64}
+	qt.BenchmarkParallel(b)
+	b.Logf("w: %d, r: %d, f: %d", q.(*Pointer).w, q.(*Pointer).r, q.(*Pointer).failed)
+}
+
+func BenchmarkPointerGo(b *testing.B) {
+	var q IQueue = &Pointer{size: 1024}
 	qt := &qTester{q: q, p: 2, batch: 64}
 	qt.BenchmarkParallel(b)
 	b.Logf("w: %d, r: %d, f: %d", q.(*Pointer).w, q.(*Pointer).r, q.(*Pointer).failed)
+}
+
+func BenchmarkChan(b *testing.B) {
+	var q IQueue = &ChCycle{ch: make(chan int64, 1024)}
+	qt := &qTester{q: q, p: 1, batch: 64}
+	qt.BenchmarkParallel(b)
 }
 
 func BenchmarkAdder(b *testing.B) {

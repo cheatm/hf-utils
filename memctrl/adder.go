@@ -9,7 +9,7 @@ type Adder struct {
 	s int64
 }
 
-func (a *Adder) Push() {
+func (a *Adder) Push(int64) {
 	w := atomic.AddInt64(&a.w, 1)
 	r := atomic.LoadInt64(&a.r)
 	if w-r > a.s {
@@ -35,7 +35,7 @@ type Pointer struct {
 	failed int64
 }
 
-func (p *Pointer) Push() {
+func (p *Pointer) Push(int64) {
 	w := atomic.AddInt64(&p.w, 1)
 	// r := atomic.LoadInt64(&p.cr)
 	r := atomic.LoadInt64(&p.r)
@@ -56,4 +56,26 @@ func (p *Pointer) Pop() int64 {
 		// atomic.AddInt64(&p.cr, 1)
 	}
 	return r
+}
+
+type ChCycle struct {
+	ch chan int64
+	a  int64
+}
+
+func (c *ChCycle) Push(idx int64) {
+	select {
+	case c.ch <- atomic.AddInt64(&c.a, 1):
+	// case c.ch <- idx:
+	default:
+	}
+}
+
+func (c *ChCycle) Pop() int64 {
+	select {
+	case idx := <-c.ch:
+		return idx
+	default:
+		return 0
+	}
 }
