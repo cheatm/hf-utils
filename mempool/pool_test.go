@@ -26,9 +26,9 @@ func (p *RawMemPool[T]) New() *T {
 func (p *RawMemPool[T]) Init(int64) {}
 
 type object struct {
-	Count int64
 	By    int64
 	Data  [128]byte
+	Count int64
 }
 
 func (o *object) Require() int64 {
