@@ -84,7 +84,18 @@ func (qt *QueueTester) BenchmarkPool(b *testing.B) {
 func BenchmarkAQueue(b *testing.B) {
 	qt := QueueTester{
 		queue:    &aQueue{},
-		parallel: 2,
+		parallel: 8,
+		size:     1 << 16,
+		batch:    1 << 12,
+	}
+
+	qt.BenchmarkPool(b)
+}
+
+func BenchmarkCasQueue(b *testing.B) {
+	qt := QueueTester{
+		queue:    &casQueue{},
+		parallel: 8,
 		size:     1 << 16,
 		batch:    1 << 12,
 	}
@@ -140,4 +151,31 @@ func BenchmarkCQueueParallels(b *testing.B) {
 		size:      1 << 16,
 	}
 	pqt.BenchmarkPool(b)
+}
+
+func TestQ32Shift(t *testing.T) {
+	q := &aQueueShift32{}
+	q.Init(1<<12 - 1)
+	q.Push(1)
+	// t.Logf("q.rw=%d", q.rw)
+	t.Logf("q.rw=%x", q.rw)
+	q.Pop()
+	t.Logf("q.rw=%x", q.rw)
+	q.Pop()
+	t.Logf("q.rw=%x", q.rw)
+
+}
+
+func BenchmarkAQueue32Shift(b *testing.B) {
+	aq := aQueueShift32{}
+	qt := QueueTester{
+		queue:    &aq,
+		parallel: 8,
+		size:     (1 << 16) - 1,
+		batch:    1 << 12,
+	}
+
+	qt.BenchmarkPool(b)
+	b.Logf("pop failed: %d", aq.popFailed)
+	b.Logf("push failed: %d", aq.pushFailed)
 }

@@ -1,5 +1,10 @@
 package mempool
 
+import (
+	"fmt"
+	"sync/atomic"
+)
+
 type IQueue interface {
 	Init(int64)
 	Push(int64)
@@ -7,13 +12,13 @@ type IQueue interface {
 }
 
 type MemPool[T any] struct {
-	queue aQueue
+	queue casQueue
 	cache bitmapCache[T]
 }
 
 func (m *MemPool[T]) Init(size int64) {
 	m.cache.init(size)
-	m.queue.Init(size)
+	m.queue.Init(size + 1)
 	for i := int64(0); i < size; i++ {
 		m.queue.Push(i)
 	}
@@ -22,6 +27,15 @@ func (m *MemPool[T]) Init(size int64) {
 func (m *MemPool[T]) New() *T {
 	idx, ok := m.queue.Pop()
 	if ok {
+		if m.cache.tag[idx].Load() {
+			r := atomic.LoadInt64(&m.queue.r)
+			w := atomic.LoadInt64(&m.queue.w)
+
+			panic(fmt.Sprintf(
+				"cache[%d] not recycled, q{r:%d, w:%d} %s",
+				idx, r, w, &m.queue.oplogs[idx],
+			))
+		}
 		m.cache.tag[idx].Store(true)
 		return &m.cache.cache[idx]
 	}
