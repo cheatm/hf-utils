@@ -121,7 +121,7 @@ func (pt *PoolTester) BenchmarkParallel(b *testing.PB) int {
 func BenchmarkMemPoolRW(b *testing.B) {
 	pt := &PoolTester{
 		pool:     &MemPool[object]{},
-		size:     (1 << 16) - 1,
+		size:     (1 << 24) - 1,
 		batch:    1 << 12,
 		parallel: 4,
 	}
