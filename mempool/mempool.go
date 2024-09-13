@@ -36,8 +36,9 @@ func (m *MemPool[T]) New() *T {
 				idx, r, w, &m.queue.oplogs[idx],
 			))
 		}
+		ptr := &m.cache.cache[idx]
 		m.cache.tag[idx].Store(true)
-		return &m.cache.cache[idx]
+		return ptr
 	}
 	return nil
 }
