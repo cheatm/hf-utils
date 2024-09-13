@@ -119,7 +119,7 @@ func (q *casQueue) Push(idx int64) bool {
 			if atomic.CompareAndSwapInt64(&q.w, w, w+1) {
 				w = w % q.size
 				q.data[w].d = idx
-				// q.data[w].t.Store(true)
+				q.data[w].t.Store(true)
 				return true
 			}
 		} else {
@@ -139,11 +139,11 @@ func (q *casQueue) Pop() (int64, bool) {
 		r := atomic.LoadInt64(&q.r)
 		if r < w {
 			d := &q.data[r%q.size]
-			// if !d.t.Load() {
-			// 	return -1, false
-			// }
+			if !d.t.Load() {
+				return -1, false
+			}
 			if atomic.CompareAndSwapInt64(&q.r, r, r+1) {
-				// d.t.Store(false)
+				d.t.Store(false)
 				return d.d, true
 			}
 		} else {
