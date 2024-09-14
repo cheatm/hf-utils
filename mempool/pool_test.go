@@ -29,7 +29,7 @@ type iMemPool[T any] interface {
 type RawMemPool[T any] struct{}
 
 func (p *RawMemPool[T]) Free(*T) bool {
-	return false
+	return true
 }
 
 func (p *RawMemPool[T]) New() *T {
