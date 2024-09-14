@@ -13,7 +13,7 @@ func getParallel(d int) int {
 	p, ok := os.LookupEnv("PARALLEL")
 	if ok {
 		benchParallel, err := strconv.ParseInt(p, 10, 64)
-		if err != nil {
+		if err == nil {
 			return int(benchParallel)
 		}
 	}
