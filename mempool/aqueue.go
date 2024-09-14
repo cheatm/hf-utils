@@ -115,7 +115,7 @@ func (q *casQueue) Push(idx int64) bool {
 	for {
 		r := atomic.LoadInt64(&q.r)
 		w := atomic.LoadInt64(&q.w)
-		if w-r < q.size {
+		if q.notFull(w, r) {
 			if atomic.CompareAndSwapInt64(&q.w, w, w+1) {
 				w = w % q.size
 				q.data[w].d = idx
@@ -128,6 +128,10 @@ func (q *casQueue) Push(idx int64) bool {
 	}
 }
 
+func (q *casQueue) notFull(w, r int64) bool {
+	return w-r < q.size
+}
+
 // aPop
 // avoid empty: r = w
 // _ _ _ _ _ _ _ _
@@ -137,7 +141,7 @@ func (q *casQueue) Pop() (int64, bool) {
 	for {
 		w := atomic.LoadInt64(&q.w)
 		r := atomic.LoadInt64(&q.r)
-		if r < w {
+		if q.notEmpty(w, r) {
 			d := &q.data[r%q.size]
 			if !d.t.Load() {
 				return -1, false
@@ -150,6 +154,10 @@ func (q *casQueue) Pop() (int64, bool) {
 			return -1, false
 		}
 	}
+}
+
+func (q *casQueue) notEmpty(w, r int64) bool {
+	return r < w
 }
 
 const (

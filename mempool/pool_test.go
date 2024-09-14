@@ -2,10 +2,23 @@ package mempool
 
 import (
 	"fmt"
+	"os"
 	"runtime"
+	"strconv"
 	"sync/atomic"
 	"testing"
 )
+
+func getParallel(d int) int {
+	p, ok := os.LookupEnv("PARALLEL")
+	if ok {
+		benchParallel, err := strconv.ParseInt(p, 10, 64)
+		if err != nil {
+			return int(benchParallel)
+		}
+	}
+	return d
+}
 
 type iMemPool[T any] interface {
 	Free(ptr *T) bool
@@ -81,6 +94,7 @@ func (pt *PoolTester) BenchmarkParallel(b *testing.PB) int {
 		if array[_i] == nil {
 			ptr := pt.pool.New()
 			if ptr == nil {
+				runtime.Gosched()
 				continue
 			}
 			required := ptr.Require()
@@ -110,8 +124,11 @@ func (pt *PoolTester) BenchmarkParallel(b *testing.PB) int {
 			if release != 0 {
 				panic(fmt.Errorf("Release Failed: {i=%d, _i=%d, r=%d}", i, _i, release))
 			}
-			pt.pool.Free(array[_i])
-			array[_i] = nil
+			if !pt.pool.Free(array[_i]) {
+				runtime.Gosched()
+			} else {
+				array[_i] = nil
+			}
 		}
 
 	}
@@ -122,8 +139,8 @@ func BenchmarkMemPoolRW(b *testing.B) {
 	pt := &PoolTester{
 		pool:     &MemPool[object]{},
 		size:     (1 << 16) - 1,
-		batch:    1 << 12,
-		parallel: 4,
+		batch:    1 << 14,
+		parallel: getParallel(4),
 	}
 	pt.BenchmarkRandomRW(b)
 }
@@ -132,8 +149,8 @@ func BenchmarkChMemPoolRW(b *testing.B) {
 	pt := &PoolTester{
 		pool:     &ChMemPool[object]{},
 		size:     1 << 16,
-		batch:    1 << 12,
-		parallel: 4,
+		batch:    1 << 14,
+		parallel: getParallel(4),
 	}
 	pt.BenchmarkRandomRW(b)
 }
@@ -143,7 +160,7 @@ func BenchmarkRawPoolRW(b *testing.B) {
 		pool:     &RawMemPool[object]{},
 		size:     1 << 16,
 		batch:    1 << 12,
-		parallel: 2,
+		parallel: getParallel(4),
 	}
 	pt.BenchmarkRandomRW(b)
 }
