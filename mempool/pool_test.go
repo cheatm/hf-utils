@@ -138,7 +138,7 @@ func BenchmarkMemPoolRW(b *testing.B) {
 	pt := &PoolTester{
 		pool:     &MemPool[object]{},
 		size:     (1 << 16) - 1,
-		batch:    1 << 14,
+		batch:    1 << 12,
 		parallel: getParallel(4),
 	}
 	pt.BenchmarkRandomRW(b)
@@ -148,7 +148,7 @@ func BenchmarkChMemPoolRW(b *testing.B) {
 	pt := &PoolTester{
 		pool:     &ChMemPool[object]{},
 		size:     1 << 16,
-		batch:    1 << 14,
+		batch:    1 << 12,
 		parallel: getParallel(4),
 	}
 	pt.BenchmarkRandomRW(b)
