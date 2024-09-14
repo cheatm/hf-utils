@@ -142,7 +142,7 @@ func BenchmarkMemPoolRW(b *testing.B) {
 		pool:     &MemPool[object]{},
 		size:     (1 << 16) - 1,
 		batch:    1 << 12,
-		parallel: getParallel(4),
+		parallel: getParallel(2),
 	}
 	pt.BenchmarkRandomRW(b)
 }
