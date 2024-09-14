@@ -124,10 +124,9 @@ func (pt *PoolTester) BenchmarkParallel(b *testing.PB) int {
 			if release != 0 {
 				panic(fmt.Errorf("Release Failed: {i=%d, _i=%d, r=%d}", i, _i, release))
 			}
+			array[_i] = nil
 			if !pt.pool.Free(array[_i]) {
 				runtime.Gosched()
-			} else {
-				array[_i] = nil
 			}
 		}
 
