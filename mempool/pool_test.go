@@ -124,9 +124,12 @@ func (pt *PoolTester) BenchmarkParallel(b *testing.PB) int {
 			if release != 0 {
 				panic(fmt.Errorf("Release Failed: {i=%d, _i=%d, r=%d}", i, _i, release))
 			}
-			array[_i] = nil
-			if !pt.pool.Free(array[_i]) {
+			if pt.pool.Free(array[_i]) {
+				array[_i] = nil
+			} else {
+				array[_i].Require()
 				runtime.Gosched()
+
 			}
 		}
 
@@ -149,7 +152,7 @@ func BenchmarkChMemPoolRW(b *testing.B) {
 		pool:     &ChMemPool[object]{},
 		size:     1 << 16,
 		batch:    1 << 12,
-		parallel: getParallel(4),
+		parallel: getParallel(2),
 	}
 	pt.BenchmarkRandomRW(b)
 }
@@ -159,7 +162,7 @@ func BenchmarkRawPoolRW(b *testing.B) {
 		pool:     &RawMemPool[object]{},
 		size:     1 << 16,
 		batch:    1 << 12,
-		parallel: getParallel(4),
+		parallel: getParallel(2),
 	}
 	pt.BenchmarkRandomRW(b)
 }
