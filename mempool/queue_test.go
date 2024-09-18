@@ -81,17 +81,6 @@ func (qt *QueueTester) BenchmarkPool(b *testing.B) {
 	b.Logf("pop failed rate: %d / %d = %f", br.PopFailed, br.PopCount, float64(br.PopFailed)/float64(br.PopCount))
 }
 
-func BenchmarkAQueue(b *testing.B) {
-	qt := QueueTester{
-		queue:    &aQueue{},
-		parallel: 4,
-		size:     1 << 16,
-		batch:    1 << 12,
-	}
-
-	qt.BenchmarkPool(b)
-}
-
 func BenchmarkCasQueue(b *testing.B) {
 	qt := QueueTester{
 		queue:    &casQueue{},
@@ -131,16 +120,6 @@ func (pt *ParallelQueueTester) BenchmarkPool(b *testing.B) {
 		}
 		b.Run(fmt.Sprintf("Parallel-%d", parallel), qt.BenchmarkPool)
 	}
-}
-
-func BenchmarkAQueueParallels(b *testing.B) {
-	pqt := ParallelQueueTester{
-		maker:     func() iQueue { return &aQueue{} },
-		parallels: []int{1, 2, 4, 8},
-		batch:     1 << 12,
-		size:      1 << 16,
-	}
-	pqt.BenchmarkPool(b)
 }
 
 func BenchmarkCQueueParallels(b *testing.B) {

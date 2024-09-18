@@ -2,6 +2,7 @@ package mempool
 
 import (
 	"fmt"
+	"runtime"
 )
 
 type IQueue interface {
@@ -44,8 +45,10 @@ func (m *MemPool[T]) Free(ptr *T) bool {
 	idx := int64(m.cache.getIndex(ptr))
 	if idx < m.cache.size {
 		if m.cache.tag[idx].CompareAndSwap(true, false) {
-			result := m.queue.Push(idx)
-			return result
+			for !m.queue.Push(idx) {
+				runtime.Gosched()
+			}
+			return true
 		}
 	}
 	return false

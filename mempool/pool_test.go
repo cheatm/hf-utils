@@ -41,7 +41,7 @@ func (p *RawMemPool[T]) Init(int64) {}
 
 type object struct {
 	Idx   int64
-	Data  [1024]byte
+	Data  [1 << 6]byte
 	Count int64
 }
 
@@ -58,7 +58,6 @@ type PoolTester struct {
 	size     int64
 	batch    int64
 	parallel int
-	id       atomic.Int64
 }
 
 type BenchStats struct {
@@ -177,7 +176,7 @@ func BenchmarkRawPoolRW(b *testing.B) {
 	pt := &PoolTester{
 		pool:     &RawMemPool[object]{},
 		size:     1 << 16,
-		batch:    1 << 12,
+		batch:    1 << 10,
 		parallel: getParallel(2),
 	}
 	pt.BenchmarkRandomRW(b)
