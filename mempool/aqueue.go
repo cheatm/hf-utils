@@ -165,10 +165,10 @@ func (q *casQueue) pop() (int64, bool, int64, int64) {
 		r := atomic.LoadInt64(&q.r)
 		if q.notEmpty(w, r) {
 			d := &q.data[r%q.size]
-			data := d.d
 			if !d.t.Load() {
 				return -1, false, w, r
 			}
+			data := d.d
 			if atomic.CompareAndSwapInt64(&q.r, r, r+1) {
 				d.t.Store(false)
 				return data, true, w, r
