@@ -24,14 +24,14 @@ func (m *MemPool[T]) Init(size int64) {
 }
 
 func (m *MemPool[T]) New() *T {
-	// idx, ok := m.queue.Pop()
-	idx, ok, w, r := m.queue.pop()
+	idx, ok := m.queue.Pop()
+	// idx, ok, w, r := m.queue.pop()
 	if ok {
 		if m.cache.tag[idx].Load() {
 
 			panic(fmt.Sprintf(
-				"cache[%d] not recycled, q{r:%d, w:%d}",
-				idx, r, w,
+				"cache[%d] not recycled",
+				idx,
 			))
 		}
 		m.cache.tag[idx].Store(true)

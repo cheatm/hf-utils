@@ -1,7 +1,6 @@
 package mempool
 
 import (
-	"fmt"
 	"runtime"
 	"sync/atomic"
 )
@@ -63,27 +62,6 @@ func (q *aQueue) Pop() (int64, bool) {
 }
 
 type AQueue = aQueue
-
-type oplog struct {
-	R  int64
-	FR int64
-	W  int64
-	FW int64
-}
-
-func (l *oplog) UpdateR(r int64) {
-	l.FR = l.R
-	l.R = r
-}
-
-func (l *oplog) UpdateW(w int64) {
-	l.FW = l.W
-	l.W = w
-}
-
-func (l *oplog) String() string {
-	return fmt.Sprintf("oplog{r: %d, fr: %d, w: %d, fw: %d}", l.R, l.FR, l.W, l.FW)
-}
 
 type casData struct {
 	d int64
@@ -149,9 +127,10 @@ func (q *casQueue) Pop() (int64, bool) {
 			if !d.t.Load() {
 				return -1, false
 			}
+			data := d.d
 			if atomic.CompareAndSwapInt64(&q.r, r, r+1) {
 				d.t.Store(false)
-				return d.d, true
+				return data, true
 			}
 		} else {
 			return -1, false
@@ -159,25 +138,25 @@ func (q *casQueue) Pop() (int64, bool) {
 	}
 }
 
-func (q *casQueue) pop() (int64, bool, int64, int64) {
-	for {
-		w := atomic.LoadInt64(&q.w)
-		r := atomic.LoadInt64(&q.r)
-		if q.notEmpty(w, r) {
-			d := &q.data[r%q.size]
-			if !d.t.Load() {
-				return -1, false, w, r
-			}
-			data := d.d
-			if atomic.CompareAndSwapInt64(&q.r, r, r+1) {
-				d.t.Store(false)
-				return data, true, w, r
-			}
-		} else {
-			return -1, false, w, r
-		}
-	}
-}
+// func (q *casQueue) pop() (int64, bool, int64, int64) {
+// 	for {
+// 		w := atomic.LoadInt64(&q.w)
+// 		r := atomic.LoadInt64(&q.r)
+// 		if q.notEmpty(w, r) {
+// 			d := &q.data[r%q.size]
+// 			if !d.t.Load() {
+// 				return -1, false, w, r
+// 			}
+// 			data := d.d
+// 			if atomic.CompareAndSwapInt64(&q.r, r, r+1) {
+// 				d.t.Store(false)
+// 				return data, true, w, r
+// 			}
+// 		} else {
+// 			return -1, false, w, r
+// 		}
+// 	}
+// }
 
 func (q *casQueue) notEmpty(w, r int64) bool {
 	return r < w
