@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func getParallel(d int) int {
@@ -60,6 +61,10 @@ type PoolTester struct {
 	id       atomic.Int64
 }
 
+type BenchStats struct {
+	AllocCount, AllocFailed, FreeCount, FreeFailed int
+}
+
 func (pt *PoolTester) BenchmarkRandomRW(b *testing.B) {
 	var count int
 	if pt.parallel > 0 {
@@ -68,32 +73,47 @@ func (pt *PoolTester) BenchmarkRandomRW(b *testing.B) {
 	} else {
 		count = runtime.GOMAXPROCS(0)
 	}
-	ch := make(chan int64, count)
+	ch := make(chan BenchStats, count)
 	pt.pool.Init(pt.size)
 	b.RunParallel(func(pb *testing.PB) {
-		allocCount := pt.BenchmarkParallel(pb)
-		ch <- int64(allocCount)
+		stats := pt.BenchmarkParallel(pb)
+		ch <- stats
 	})
-	results := make([]int64, count)
-	totalAlloc := int64(0)
+	// results := make([]int64, count)
+	var totalAlloc, failedAlloc, totalFree, failedFree int
 	for i := 0; i < count; i++ {
-		results[i] = <-ch
-		totalAlloc += results[i]
+		// results[i] = <-ch
+		stats := <-ch
+		totalAlloc = totalAlloc + stats.AllocCount
+		failedAlloc = failedAlloc + stats.AllocFailed
+		totalFree = totalFree + stats.FreeCount
+		failedFree = failedFree + stats.FreeFailed
 	}
-	b.Logf("N=%d, AllocRate=%f", b.N, float64(totalAlloc)/float64(b.N))
+	b.Logf(
+		"N=%d, AllocRate=%f, AllocFailed=%f, FreeFailed=%f",
+		b.N, float64(totalAlloc)/float64(b.N),
+		float64(failedAlloc)/float64(totalAlloc),
+		float64(failedFree)/float64(totalFree),
+	)
+	var stats runtime.MemStats
+	runtime.ReadMemStats(&stats)
+	b.Logf("GC Paused: %s", time.Duration(stats.PauseTotalNs))
 }
 
-func (pt *PoolTester) BenchmarkParallel(b *testing.PB) int {
+func (pt *PoolTester) BenchmarkParallel(b *testing.PB) BenchStats {
 	// pid := pt.id.Add(1)
 	array := make([]*object, pt.batch)
-	var allocCount int = 0
+	// var allocCount, allocFailed, freeCount, freeFailed int
+	var stats BenchStats
 	var i int64 = 0
 	for b.Next() {
 		i++
 		_i := i % pt.batch
 		if array[_i] == nil {
+			stats.AllocCount++
 			ptr := pt.pool.New()
 			if ptr == nil {
+				stats.AllocFailed++
 				runtime.Gosched()
 				continue
 			}
@@ -116,8 +136,8 @@ func (pt *PoolTester) BenchmarkParallel(b *testing.PB) int {
 			// 	))
 			// }
 			array[_i] = ptr
-			allocCount++
 		} else {
+			stats.FreeCount++
 			// array[_i].Count = 0
 			// array[_i].By = 0
 			release := array[_i].Release()
@@ -127,6 +147,7 @@ func (pt *PoolTester) BenchmarkParallel(b *testing.PB) int {
 			if pt.pool.Free(array[_i]) {
 				array[_i] = nil
 			} else {
+				stats.FreeFailed++
 				array[_i].Require()
 				runtime.Gosched()
 
@@ -134,13 +155,13 @@ func (pt *PoolTester) BenchmarkParallel(b *testing.PB) int {
 		}
 
 	}
-	return allocCount
+	return stats
 }
 
 func BenchmarkMemPoolRW(b *testing.B) {
 	pt := &PoolTester{
 		pool:     &MemPool[object]{},
-		size:     (1 << 17) - 1,
+		size:     (1 << 16) - 1,
 		batch:    1 << 12,
 		parallel: getParallel(4),
 	}
@@ -152,7 +173,7 @@ func BenchmarkChMemPoolRW(b *testing.B) {
 		pool:     &ChMemPool[object]{},
 		size:     1 << 16,
 		batch:    1 << 12,
-		parallel: getParallel(2),
+		parallel: getParallel(4),
 	}
 	pt.BenchmarkRandomRW(b)
 }

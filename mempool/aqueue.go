@@ -2,6 +2,7 @@ package mempool
 
 import (
 	"fmt"
+	"runtime"
 	"sync/atomic"
 )
 
@@ -116,10 +117,14 @@ func (q *casQueue) Push(idx int64) bool {
 		r := atomic.LoadInt64(&q.r)
 		w := atomic.LoadInt64(&q.w)
 		if q.notFull(w, r) {
+			data := &q.data[w%q.size]
+			if data.t.Load() {
+				runtime.Gosched()
+				continue
+			}
 			if atomic.CompareAndSwapInt64(&q.w, w, w+1) {
-				w = w % q.size
-				q.data[w].d = idx
-				q.data[w].t.Store(true)
+				data.d = idx
+				data.t.Store(true)
 				return true
 			}
 		} else {
