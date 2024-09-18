@@ -96,7 +96,6 @@ type casQueue struct {
 	w    int64 // write position
 	r    int64 // read position
 
-	oplogs []oplog
 }
 
 func (q *casQueue) Init(size int64) {
@@ -105,7 +104,6 @@ func (q *casQueue) Init(size int64) {
 	q.w = 0
 	q.r = 0
 
-	q.oplogs = make([]oplog, size)
 }
 
 // aPush
@@ -157,6 +155,25 @@ func (q *casQueue) Pop() (int64, bool) {
 			}
 		} else {
 			return -1, false
+		}
+	}
+}
+
+func (q *casQueue) pop() (int64, bool, int64, int64) {
+	for {
+		w := atomic.LoadInt64(&q.w)
+		r := atomic.LoadInt64(&q.r)
+		if q.notEmpty(w, r) {
+			d := &q.data[r%q.size]
+			if !d.t.Load() {
+				return -1, false, w, r
+			}
+			if atomic.CompareAndSwapInt64(&q.r, r, r+1) {
+				d.t.Store(false)
+				return d.d, true, w, r
+			}
+		} else {
+			return -1, false, w, r
 		}
 	}
 }
