@@ -138,26 +138,6 @@ func (q *casQueue) Pop() (int64, bool) {
 	}
 }
 
-// func (q *casQueue) pop() (int64, bool, int64, int64) {
-// 	for {
-// 		w := atomic.LoadInt64(&q.w)
-// 		r := atomic.LoadInt64(&q.r)
-// 		if q.notEmpty(w, r) {
-// 			d := &q.data[r%q.size]
-// 			if !d.t.Load() {
-// 				return -1, false, w, r
-// 			}
-// 			data := d.d
-// 			if atomic.CompareAndSwapInt64(&q.r, r, r+1) {
-// 				d.t.Store(false)
-// 				return data, true, w, r
-// 			}
-// 		} else {
-// 			return -1, false, w, r
-// 		}
-// 	}
-// }
-
 func (q *casQueue) notEmpty(w, r int64) bool {
 	return r < w
 }
