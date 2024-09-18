@@ -40,8 +40,8 @@ func (p *RawMemPool[T]) New() *T {
 func (p *RawMemPool[T]) Init(int64) {}
 
 type object struct {
-	By    int64
-	Data  [128]byte
+	Idx   int64
+	Data  [1024]byte
 	Count int64
 }
 
@@ -63,6 +63,7 @@ type PoolTester struct {
 
 type BenchStats struct {
 	AllocCount, AllocFailed, FreeCount, FreeFailed int
+	Used                                           int64
 }
 
 func (pt *PoolTester) BenchmarkRandomRW(b *testing.B) {
@@ -81,6 +82,7 @@ func (pt *PoolTester) BenchmarkRandomRW(b *testing.B) {
 	})
 	// results := make([]int64, count)
 	var totalAlloc, failedAlloc, totalFree, failedFree int
+	var used int64
 	for i := 0; i < count; i++ {
 		// results[i] = <-ch
 		stats := <-ch
@@ -88,10 +90,12 @@ func (pt *PoolTester) BenchmarkRandomRW(b *testing.B) {
 		failedAlloc = failedAlloc + stats.AllocFailed
 		totalFree = totalFree + stats.FreeCount
 		failedFree = failedFree + stats.FreeFailed
+		used += stats.Used
 	}
 	b.Logf(
-		"N=%d, AllocRate=%f, AllocFailed=%f, FreeFailed=%f",
-		b.N, float64(totalAlloc)/float64(b.N),
+		"N=%d, U=%d, AllocRate=%f, AllocFailed=%f, FreeFailed=%f",
+		b.N, used,
+		float64(totalAlloc)/float64(b.N),
 		float64(failedAlloc)/float64(totalAlloc),
 		float64(failedFree)/float64(totalFree),
 	)
@@ -105,7 +109,7 @@ func (pt *PoolTester) BenchmarkParallel(b *testing.PB) BenchStats {
 	array := make([]*object, pt.batch)
 	// var allocCount, allocFailed, freeCount, freeFailed int
 	var stats BenchStats
-	var i int64 = 0
+	var i int64 = -1
 	for b.Next() {
 		i++
 		_i := i % pt.batch
@@ -117,44 +121,35 @@ func (pt *PoolTester) BenchmarkParallel(b *testing.PB) BenchStats {
 				runtime.Gosched()
 				continue
 			}
+			ptr.Idx = _i
 			required := ptr.Require()
 			if required != 1 {
 				panic(fmt.Errorf("Require Failed: {i=%d, _i=%d, r=%d}", i, _i, required))
 			}
-			// if ptr.Count != 0 {
-			// 	idx := ptr.Count % pt.batch
-			// 	ptr2 := array[idx]
-			// 	if ptr2 != nil {
-			// 		panic(fmt.Errorf(
-			// 			"[pid=%d] count should be zero, not %d, array[%d]{Count=%d, By=%d}, current count: %d",
-			// 			pid, ptr.Count, idx, ptr2.Count, ptr2.By, i,
-			// 		))
-			// 	}
-			// 	panic(fmt.Errorf(
-			// 		"[pid=%d] count should be zero, not %d, current count: %d",
-			// 		pid, ptr.Count, i,
-			// 	))
-			// }
 			array[_i] = ptr
 		} else {
 			stats.FreeCount++
-			// array[_i].Count = 0
-			// array[_i].By = 0
-			release := array[_i].Release()
+			ptr := array[_i]
+			release := ptr.Release()
 			if release != 0 {
 				panic(fmt.Errorf("Release Failed: {i=%d, _i=%d, r=%d}", i, _i, release))
 			}
+			tmp := ptr.Idx
+			stats.Used += ptr.Idx
+			ptr.Idx = 0
 			if pt.pool.Free(array[_i]) {
 				array[_i] = nil
 			} else {
 				stats.FreeFailed++
 				array[_i].Require()
+				ptr.Idx = tmp
+				stats.Used -= tmp
 				runtime.Gosched()
 
 			}
 		}
-
 	}
+
 	return stats
 }
 
@@ -163,7 +158,7 @@ func BenchmarkMemPoolRW(b *testing.B) {
 		pool:     &MemPool[object]{},
 		size:     (1 << 16) - 1,
 		batch:    1 << 12,
-		parallel: getParallel(4),
+		parallel: getParallel(2),
 	}
 	pt.BenchmarkRandomRW(b)
 }
@@ -173,7 +168,7 @@ func BenchmarkChMemPoolRW(b *testing.B) {
 		pool:     &ChMemPool[object]{},
 		size:     1 << 16,
 		batch:    1 << 12,
-		parallel: getParallel(4),
+		parallel: getParallel(2),
 	}
 	pt.BenchmarkRandomRW(b)
 }
