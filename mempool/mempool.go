@@ -23,6 +23,7 @@ func (m *MemPool[T]) Init(size int64) {
 	m.queue.Init(size + 1)
 	for i := int64(0); i < size; i++ {
 		m.queue.Push(i)
+		atomic.AddInt64(&m.pushs[i], 1)
 	}
 	m.pops = make([]int64, size)
 	m.pushs = make([]int64, size)
