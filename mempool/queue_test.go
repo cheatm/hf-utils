@@ -84,7 +84,7 @@ func (qt *QueueTester) BenchmarkPool(b *testing.B) {
 func BenchmarkAQueue(b *testing.B) {
 	qt := QueueTester{
 		queue:    &aQueue{},
-		parallel: 8,
+		parallel: 4,
 		size:     1 << 16,
 		batch:    1 << 12,
 	}
@@ -95,8 +95,8 @@ func BenchmarkAQueue(b *testing.B) {
 func BenchmarkCasQueue(b *testing.B) {
 	qt := QueueTester{
 		queue:    &casQueue{},
-		parallel: 8,
-		size:     1 << 16,
+		parallel: 4,
+		size:     (1 << 16) - 1,
 		batch:    1 << 12,
 	}
 
