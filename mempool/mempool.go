@@ -2,6 +2,7 @@ package mempool
 
 import (
 	"fmt"
+	"sync/atomic"
 )
 
 type IQueue interface {
@@ -34,11 +35,14 @@ func (m *MemPool[T]) New() *T {
 		if m.cache.tag[idx].Load() {
 
 			panic(fmt.Sprintf(
-				"cache[%d] not recycled, q{r:%d, w:%d}",
+				"cache[%d] not recycled, q{r:%d, w:%d} pushed: %d, popped: %d",
 				idx, r, w,
+				atomic.LoadInt64(&m.pushs[idx]),
+				atomic.LoadInt64(&m.pops[idx]),
 			))
 		}
 		m.cache.tag[idx].Store(true)
+		atomic.AddInt64(&m.pops[idx], 1)
 		return &m.cache.cache[idx]
 	}
 	return nil
@@ -48,7 +52,9 @@ func (m *MemPool[T]) Free(ptr *T) bool {
 	idx := int64(m.cache.getIndex(ptr))
 	if idx < m.cache.size {
 		if m.cache.tag[idx].CompareAndSwap(true, false) {
-			return m.queue.Push(idx)
+			result := m.queue.Push(idx)
+			atomic.AddInt64(&m.pushs[idx], 1)
+			return result
 		}
 	}
 	return false
