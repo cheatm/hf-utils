@@ -15,7 +15,7 @@ func (c *Cache) Add(pos int) {
 }
 
 func BenchmarkCacheLine(b *testing.B) {
-	indexes := []int{0b0111, 0b1000}
+	indexes := []int{getEnvInt("C0", 0), getEnvInt("C1", 0b1000)}
 	proc := len(indexes)
 	runtime.GOMAXPROCS(proc)
 	c := Cache{}
