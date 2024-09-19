@@ -14,7 +14,6 @@ type casQueue struct {
 	size int64
 	w    int64 // write position
 	r    int64 // read position
-
 }
 
 func (q *casQueue) Init(size int64) {
@@ -31,8 +30,8 @@ func (q *casQueue) Init(size int64) {
 // r ----------> w
 func (q *casQueue) Push(idx int64) bool {
 	for {
-		r := atomic.LoadInt64(&q.r)
 		w := atomic.LoadInt64(&q.w)
+		r := atomic.LoadInt64(&q.r)
 		if q.notFull(w, r) {
 			data := &q.data[w%q.size]
 			if data.t.Load() {
