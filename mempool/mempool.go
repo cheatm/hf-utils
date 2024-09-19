@@ -18,7 +18,7 @@ type MemPool[T any] struct {
 
 func (m *MemPool[T]) Init(size int64) {
 	m.cache.init(size)
-	m.queue.Init(size + 1)
+	m.queue.Init(size)
 	for i := int64(0); i < size; i++ {
 		m.queue.Push(i)
 	}

@@ -158,3 +158,26 @@ func BenchmarkAQueue32Shift(b *testing.B) {
 	b.Logf("pop failed: %d", aq.popFailed)
 	b.Logf("push failed: %d", aq.pushFailed)
 }
+
+func TestQueueSize(t *testing.T) {
+	size := int64(64)
+	q := casQueue{}
+	q.Init(64)
+	for i := int64(0); i < size; i++ {
+		if !q.Push(i) {
+			t.Logf("push %d failed", i)
+		}
+	}
+
+	for i := int64(0); i < size+1; i++ {
+		v, ok := q.Pop()
+		if !ok {
+			t.Logf("pop %d failed", i)
+			continue
+		}
+		if v != i {
+			t.Logf("pop %d failed, got %d", i, v)
+		}
+	}
+
+}
