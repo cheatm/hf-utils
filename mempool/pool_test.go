@@ -11,14 +11,22 @@ import (
 )
 
 func getParallel(d int) int {
-	p, ok := os.LookupEnv("PARALLEL")
+	return getEnvInt("PARALLEL", d)
+}
+
+func getCPU(d int) int {
+	return getEnvInt("CPU", d)
+}
+
+func getEnvInt(variable string, _default int) int {
+	p, ok := os.LookupEnv(variable)
 	if ok {
 		benchParallel, err := strconv.ParseInt(p, 10, 64)
 		if err == nil {
 			return int(benchParallel)
 		}
 	}
-	return d
+	return _default
 }
 
 type iMemPool[T any] interface {
@@ -39,25 +47,51 @@ func (p *RawMemPool[T]) New() *T {
 
 func (p *RawMemPool[T]) Init(int64) {}
 
-type object struct {
+type iObject interface {
+	Index() int64
+	SetIndex(int64)
+	Require() int64
+	Release() int64
+}
+
+type baseObject[D any] struct {
 	Idx   int64
-	Data  [1 << 6]byte
+	Data  D
 	Count int64
 }
 
-func (o *object) Require() int64 {
+func (o *baseObject[D]) Require() int64 {
 	return atomic.AddInt64(&o.Count, 1)
 }
 
-func (o *object) Release() int64 {
+func (o *baseObject[D]) Release() int64 {
 	return atomic.AddInt64(&o.Count, -1)
 }
 
-type PoolTester struct {
-	pool     iMemPool[object]
+func (o *baseObject[D]) Index() int64 {
+	return o.Idx
+}
+
+func (o *baseObject[D]) SetIndex(idx int64) {
+	o.Idx = idx
+}
+
+type object16 = baseObject[[1 << 4]byte]
+type object256 = baseObject[[1 << 8]byte]
+type object4096 = baseObject[[1 << 12]byte]
+
+type object = object256
+
+type PoolTester[O any, PO interface {
+	*O
+	iObject
+}] struct {
+	pool     iMemPool[O]
 	size     int64
 	batch    int64
 	parallel int
+	cpus     int
+	debug    bool
 }
 
 type BenchStats struct {
@@ -65,14 +99,22 @@ type BenchStats struct {
 	Used                                           int64
 }
 
-func (pt *PoolTester) BenchmarkRandomRW(b *testing.B) {
-	var count int
-	if pt.parallel > 0 {
-		runtime.GOMAXPROCS(pt.parallel)
-		count = pt.parallel
+func (pt *PoolTester[O, PO]) BenchmarkRandomRW(b *testing.B) {
+	cpus := pt.cpus
+	if pt.cpus > 0 {
+		runtime.GOMAXPROCS(cpus)
 	} else {
-		count = runtime.GOMAXPROCS(0)
+		runtime.GOMAXPROCS(1)
 	}
+	procs := runtime.GOMAXPROCS(0)
+	var count int
+	if pt.parallel > 1 {
+		count = pt.parallel * procs
+		b.SetParallelism(pt.parallel)
+	} else {
+		count = procs
+	}
+
 	ch := make(chan BenchStats, count)
 	pt.pool.Init(pt.size)
 	b.RunParallel(func(pb *testing.PB) {
@@ -91,21 +133,24 @@ func (pt *PoolTester) BenchmarkRandomRW(b *testing.B) {
 		failedFree = failedFree + stats.FreeFailed
 		used += stats.Used
 	}
-	b.Logf(
-		"N=%d, U=%d, AllocRate=%f, AllocFailed=%f, FreeFailed=%f",
-		b.N, used,
-		float64(totalAlloc)/float64(b.N),
-		float64(failedAlloc)/float64(totalAlloc),
-		float64(failedFree)/float64(totalFree),
-	)
-	var stats runtime.MemStats
-	runtime.ReadMemStats(&stats)
-	b.Logf("GC Paused: %s", time.Duration(stats.PauseTotalNs))
+	if pt.debug {
+		b.Logf("Procs=%d, Parallel=%d, Count=%d", procs, pt.parallel, count)
+		b.Logf(
+			"N=%d, U=%d, AllocRate=%f, AllocFailed=%f, FreeFailed=%f",
+			b.N, used,
+			float64(totalAlloc)/float64(b.N),
+			float64(failedAlloc)/float64(totalAlloc),
+			float64(failedFree)/float64(totalFree),
+		)
+		var stats runtime.MemStats
+		runtime.ReadMemStats(&stats)
+		b.Logf("GC Paused: %s", time.Duration(stats.PauseTotalNs))
+	}
 }
 
-func (pt *PoolTester) BenchmarkParallel(b *testing.PB) BenchStats {
+func (pt *PoolTester[O, PO]) BenchmarkParallel(b *testing.PB) BenchStats {
 	// pid := pt.id.Add(1)
-	array := make([]*object, pt.batch)
+	array := make([]PO, pt.batch)
 	// var allocCount, allocFailed, freeCount, freeFailed int
 	var stats BenchStats
 	var i int64 = -1
@@ -114,13 +159,13 @@ func (pt *PoolTester) BenchmarkParallel(b *testing.PB) BenchStats {
 		_i := i % pt.batch
 		if array[_i] == nil {
 			stats.AllocCount++
-			ptr := pt.pool.New()
+			ptr := PO(pt.pool.New())
 			if ptr == nil {
 				stats.AllocFailed++
 				runtime.Gosched()
 				continue
 			}
-			ptr.Idx = _i
+			ptr.SetIndex(_i)
 			required := ptr.Require()
 			if required != 1 {
 				panic(fmt.Errorf("Require Failed: {i=%d, _i=%d, r=%d}", i, _i, required))
@@ -133,15 +178,15 @@ func (pt *PoolTester) BenchmarkParallel(b *testing.PB) BenchStats {
 			if release != 0 {
 				panic(fmt.Errorf("Release Failed: {i=%d, _i=%d, r=%d}", i, _i, release))
 			}
-			tmp := ptr.Idx
-			stats.Used += ptr.Idx
-			ptr.Idx = 0
-			if pt.pool.Free(array[_i]) {
+			tmp := ptr.Index()
+			stats.Used += tmp
+			ptr.SetIndex(0)
+			if pt.pool.Free((*O)(array[_i])) {
 				array[_i] = nil
 			} else {
 				stats.FreeFailed++
 				array[_i].Require()
-				ptr.Idx = tmp
+				ptr.SetIndex(tmp)
 				stats.Used -= tmp
 				runtime.Gosched()
 
@@ -152,32 +197,143 @@ func (pt *PoolTester) BenchmarkParallel(b *testing.PB) BenchStats {
 	return stats
 }
 
+type MultiTester[O any, PO interface {
+	*O
+	iObject
+}] struct {
+	name   string
+	makers map[string]func() iMemPool[O]
+	cp     [][2]int // cpu & parallel
+	size   int64
+	batch  int64
+}
+
+func (m *MultiTester[O, PO]) Benchmark(b *testing.B) {
+
+	for poolType, maker := range m.makers {
+		for _, cp := range m.cp {
+			pt := &PoolTester[O, PO]{
+				pool:     maker(),
+				size:     m.size,
+				batch:    m.batch,
+				cpus:     cp[0],
+				parallel: cp[1],
+			}
+			b.Run(fmt.Sprintf("%s-%s-%dC-%dP", m.name, poolType, pt.cpus, pt.parallel), pt.BenchmarkRandomRW)
+		}
+	}
+}
+
+func newMemPool[O any]() iMemPool[O] {
+	return new(MemPool[O])
+}
+
+func newChPool[O any]() iMemPool[O] {
+	return new(ChMemPool[O])
+}
+
+func newRawPool[O any]() iMemPool[O] {
+	return new(RawMemPool[O])
+}
+
 func BenchmarkMemPoolRW(b *testing.B) {
-	pt := &PoolTester{
+	pt := &PoolTester[object, *object]{
 		pool:     &MemPool[object]{},
 		size:     (1 << 16),
 		batch:    1 << 12,
-		parallel: getParallel(2),
+		parallel: getParallel(4),
+		cpus:     getCPU(1),
+		debug:    true,
 	}
 	pt.BenchmarkRandomRW(b)
 }
 
 func BenchmarkChMemPoolRW(b *testing.B) {
-	pt := &PoolTester{
+	pt := &PoolTester[object, *object]{
 		pool:     &ChMemPool[object]{},
 		size:     1 << 16,
 		batch:    1 << 12,
-		parallel: getParallel(2),
+		parallel: getParallel(4),
+		cpus:     getCPU(1),
+		debug:    true,
 	}
 	pt.BenchmarkRandomRW(b)
 }
 
 func BenchmarkRawPoolRW(b *testing.B) {
-	pt := &PoolTester{
+	pt := &PoolTester[object, *object]{
 		pool:     &RawMemPool[object]{},
 		size:     1 << 16,
-		batch:    1 << 10,
+		batch:    1 << 12,
 		parallel: getParallel(2),
+		cpus:     getCPU(2),
+		debug:    true,
 	}
 	pt.BenchmarkRandomRW(b)
+}
+
+func BenchmarkMultiObj16RW(b *testing.B) {
+	pt := &MultiTester[object16, *object16]{
+		name: "obj-16B",
+		makers: map[string]func() iMemPool[object16]{
+			"mem":  newMemPool[object16],
+			"chan": newChPool[object16],
+			"raw":  newRawPool[object16],
+		},
+		size:  (1 << 16),
+		batch: 1 << 12,
+		cp: [][2]int{
+			{1, 1},
+			{1, 2},
+			{1, 4},
+			{2, 1},
+			{2, 2},
+			{4, 1},
+		},
+	}
+	pt.Benchmark(b)
+}
+
+func BenchmarkMultiObj256RW(b *testing.B) {
+	pt := &MultiTester[object256, *object256]{
+		name: "obj-256B",
+		makers: map[string]func() iMemPool[object256]{
+			"mem":  newMemPool[object256],
+			"chan": newChPool[object256],
+			"raw":  newRawPool[object256],
+		},
+		size:  (1 << 16),
+		batch: 1 << 12,
+		cp: [][2]int{
+			{1, 1},
+			{1, 2},
+			{1, 4},
+			{2, 1},
+			{2, 2},
+			{4, 1},
+		},
+	}
+	pt.Benchmark(b)
+}
+
+func BenchmarkMultiObj4096RW(b *testing.B) {
+	pt := &MultiTester[object4096, *object4096]{
+		name: "obj-4096B",
+		makers: map[string]func() iMemPool[object4096]{
+			"mem":  newMemPool[object4096],
+			"chan": newChPool[object4096],
+			"raw":  newRawPool[object4096],
+		},
+		size:  (1 << 16),
+		batch: 1 << 12,
+		cp: [][2]int{
+			{1, 1},
+			{1, 2},
+			{1, 4},
+			{2, 1},
+			{2, 2},
+			{4, 1},
+		},
+	}
+	pt.Benchmark(b)
 }
