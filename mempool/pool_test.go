@@ -241,9 +241,9 @@ func BenchmarkMemPoolRW(b *testing.B) {
 		pool:     &MemPool[object]{},
 		size:     (1 << 16),
 		batch:    1 << 12,
-		parallel: getParallel(4),
-		cpus:     getCPU(1),
-		debug:    true,
+		parallel: getParallel(1),
+		cpus:     getCPU(2),
+		debug:    false,
 	}
 	pt.BenchmarkRandomRW(b)
 }
@@ -272,24 +272,26 @@ func BenchmarkRawPoolRW(b *testing.B) {
 	pt.BenchmarkRandomRW(b)
 }
 
+var benchmarkCPs = [][2]int{
+	{1, 1},
+	{2, 1},
+	{3, 1},
+	{4, 1},
+	{5, 1},
+	{6, 1},
+}
+
 func BenchmarkMultiObj16RW(b *testing.B) {
 	pt := &MultiTester[object16, *object16]{
 		name: "obj-16B",
 		makers: map[string]func() iMemPool[object16]{
-			"mem":  newMemPool[object16],
+			"casq": newMemPool[object16],
 			"chan": newChPool[object16],
 			"raw":  newRawPool[object16],
 		},
-		size:  (1 << 16),
+		size:  (1 << 18),
 		batch: 1 << 12,
-		cp: [][2]int{
-			{1, 1},
-			{1, 2},
-			{1, 4},
-			{2, 1},
-			{2, 2},
-			{4, 1},
-		},
+		cp:    benchmarkCPs,
 	}
 	pt.Benchmark(b)
 }
@@ -298,20 +300,13 @@ func BenchmarkMultiObj256RW(b *testing.B) {
 	pt := &MultiTester[object256, *object256]{
 		name: "obj-256B",
 		makers: map[string]func() iMemPool[object256]{
-			"mem":  newMemPool[object256],
+			"casq": newMemPool[object256],
 			"chan": newChPool[object256],
 			"raw":  newRawPool[object256],
 		},
-		size:  (1 << 16),
+		size:  (1 << 18),
 		batch: 1 << 12,
-		cp: [][2]int{
-			{1, 1},
-			{1, 2},
-			{1, 4},
-			{2, 1},
-			{2, 2},
-			{4, 1},
-		},
+		cp:    benchmarkCPs,
 	}
 	pt.Benchmark(b)
 }
@@ -320,20 +315,13 @@ func BenchmarkMultiObj4096RW(b *testing.B) {
 	pt := &MultiTester[object4096, *object4096]{
 		name: "obj-4096B",
 		makers: map[string]func() iMemPool[object4096]{
-			"mem":  newMemPool[object4096],
+			"casq": newMemPool[object4096],
 			"chan": newChPool[object4096],
 			"raw":  newRawPool[object4096],
 		},
-		size:  (1 << 16),
+		size:  (1 << 18),
 		batch: 1 << 12,
-		cp: [][2]int{
-			{1, 1},
-			{1, 2},
-			{1, 4},
-			{2, 1},
-			{2, 2},
-			{4, 1},
-		},
+		cp:    benchmarkCPs,
 	}
 	pt.Benchmark(b)
 }
