@@ -289,7 +289,7 @@ func BenchmarkMultiObj16RW(b *testing.B) {
 			"chan": newChPool[object16],
 			"raw":  newRawPool[object16],
 		},
-		size:  (1 << 18),
+		size:  (1 << 16),
 		batch: 1 << 12,
 		cp:    benchmarkCPs,
 	}
@@ -304,7 +304,7 @@ func BenchmarkMultiObj256RW(b *testing.B) {
 			"chan": newChPool[object256],
 			"raw":  newRawPool[object256],
 		},
-		size:  (1 << 18),
+		size:  (1 << 16),
 		batch: 1 << 12,
 		cp:    benchmarkCPs,
 	}
@@ -319,7 +319,7 @@ func BenchmarkMultiObj4096RW(b *testing.B) {
 			"chan": newChPool[object4096],
 			"raw":  newRawPool[object4096],
 		},
-		size:  (1 << 18),
+		size:  (1 << 16),
 		batch: 1 << 12,
 		cp:    benchmarkCPs,
 	}
