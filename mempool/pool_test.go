@@ -242,8 +242,8 @@ func BenchmarkMemPoolRW(b *testing.B) {
 		size:     (1 << 16),
 		batch:    1 << 12,
 		parallel: getParallel(1),
-		cpus:     getCPU(2),
-		debug:    false,
+		cpus:     getCPU(8),
+		debug:    true,
 	}
 	pt.BenchmarkRandomRW(b)
 }
